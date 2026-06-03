@@ -1,0 +1,4 @@
+export const BOOKING_STATUS = {
+  ASSIGNED: "ASSIGNED",
+  WAITLISTED: "WAITLISTED",
+};
