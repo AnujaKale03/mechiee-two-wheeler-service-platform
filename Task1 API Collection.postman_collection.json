@@ -1,0 +1,120 @@
+{
+  "info": {
+    "_postman_id": "cc0c9961-092d-4790-bbfe-204ded48000e",
+    "name": "Task1 API Collection",
+    "description": "# Mechiee API Collection\n\nAPI Collection for Mechiee Two Wheeler Service Platform Assignment.\n\nThis collection contains endpoints for:\n\n- Services Management\n    \n- Mechanics Dashboard\n    \n- Booking Creation\n    \n- Booking History\n    \n\nFeatures:\n\n- Automatic mechanic assignment\n    \n- Waitlisting when all mechanics are busy\n    \n- Booking tracking",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "52855899",
+    "_collection_link": "https://go.postman.co/collection/52855899-cc0c9961-092d-4790-bbfe-204ded48000e?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Services",
+      "item": [
+        {
+          "name": "Get Services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/services",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "api",
+                "services"
+              ]
+            },
+            "description": "Returns all available bike services.\n\nMethod: GET\n\nEndpoint:  \n[http://localhost:5000/api/services](http://localhost:5000/api/services)\n\nResponse:  \nReturns a list of services with:\n\n- Service Name\n    \n- Description\n    \n- Price\n    \n\nResponse Example:  \n\\[  \n{  \n\"_id\": \"66a...\",  \n\"name\": \"Standard Service\",  \n\"price\": 499  \n},  \n{  \n\"_id\": \"66b...\",  \n\"name\": \"Premium Service\",  \n\"price\": 999  \n}  \n\\]EndFragment"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Mechanics",
+      "item": [
+        {
+          "name": "Get Mechanics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/mechanics",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "api",
+                "mechanics"
+              ]
+            },
+            "description": "Returns all mechanics and their current workload.\n\nMethod: GET\n\nEndpoint:  \nGET /api/mechanics\n\nResponse Example:\n\n\\[  \n{  \n\"_id\": \"66a...\",  \n\"name\": \"Mechanic A\",  \n\"activeBookingCount\": 2  \n},  \n{  \n\"_id\": \"66b...\",  \n\"name\": \"Mechanic B\",  \n\"activeBookingCount\": 1  \n}  \n\\]"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "Get Bookings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/bookings",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "api",
+                "bookings"
+              ]
+            },
+            "description": "Returns all bookings along with assigned mechanic and selected service details.\n\nMethod: GET\n\nEndpoint:  \nGET /api/bookings\n\nResponse Example:\n\n\\[  \n{  \n\"customerName\": \"Rahul\",  \n\"bikeModel\": \"Activa 6G\",  \n\"status\": \"CONFIRMED\",  \n\"serviceId\": {  \n\"name\": \"Standard Service\",  \n\"price\": 499  \n},  \n\"mechanicId\": {  \n\"name\": \"Mechanic A\"  \n}  \n}  \n\\]"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Booking",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"customerName\": \"Priya\",\r\n  \"bikeModel\": \"Activa\",\r\n  \"serviceId\": \"6a1e8b9826919aa89e6e2ce4\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/bookings",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "api",
+                "bookings"
+              ]
+            },
+            "description": "Creates a new service booking.\n\nMethod: POST\n\nEndpoint:  \nPOST /api/bookings\n\nRequest Body:\n\n{  \n\"customerName\": \"Priya\",  \n\"bikeModel\": \"Activa\",  \n\"serviceId\": \"SERVICE_ID\"  \n}\n\nBusiness Rules:\n\n- Booking is assigned to the mechanic with the lowest workload.\n    \n- Each mechanic can handle a maximum of 3 active bookings.\n    \n- If all mechanics are at capacity, the booking is added to the waitlist.\n    \n\nSuccess Response:\n\n{  \n\"success\": true,  \n\"status\": \"CONFIRMED\",  \n\"message\": \"Booking created successfully\"  \n}\n\nWaitlisted Response:\n\n{  \n\"success\": true,  \n\"status\": \"WAITLISTED\",  \n\"message\": \"Booking waitlisted\"  \n}"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

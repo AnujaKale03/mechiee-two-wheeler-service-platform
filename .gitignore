@@ -1,0 +1,9 @@
+node_modules/
+.env
+
+Frontend_/.expo/
+Frontend_/dist/
+
+.vscode/
+
+npm-debug.log*
