@@ -26,12 +26,12 @@ const bookingSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["ASSIGNED", "WAITLISTED"],
+      enum: ["ASSIGNED", "WAITLISTED", "IN_PROGRESS", "COMPLETED"],
       default: "ASSIGNED",
     },
   },
   {
-    timestamps: true,
+    timestamps: true, 
   }
 );
 

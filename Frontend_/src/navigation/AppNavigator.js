@@ -1,64 +1,49 @@
+// src/navigation/AppNavigator.js
 import { NavigationContainer } from "@react-navigation/native";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Ionicons } from "@expo/vector-icons";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import RoleSelectionScreen from "../screens/RoleSelectionScreen";
+import CustomerNavigator from "./CustomerNavigator";
+import MechanicNavigator from "./MechanicNavigator";
+import { COLORS } from "../utils/theme";
 
-import HomeScreen from "../screens/HomeScreen";
-import BookServiceScreen from "../screens/BookServiceScreen";
-import BookingHistoryScreen from "../screens/BookingHistoryScreen";
-import MechanicsDashboardScreen from "../screens/MechanicsDashboardScreen";
-
-const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          tabBarIcon: ({ color, size }) => {
-            let iconName;
-
-            if (route.name === "Home") {
-              iconName = "home";
-            } else if (route.name === "Book Service") {
-              iconName = "construct";
-            } else if (route.name === "Bookings") {
-              iconName = "list";
-            } else if (route.name === "Mechanics") {
-              iconName = "people";
-            }
-
-            return (
-              <Ionicons
-                name={iconName}
-                size={size}
-                color={color}
-              />
-            );
-          },
-          tabBarActiveTintColor: "#2196F3",
-          tabBarInactiveTintColor: "gray",
-        })}
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: { backgroundColor: COLORS.primary },
+          headerTintColor: COLORS.textInverse,
+          headerTitleStyle: { fontWeight: "700" },
+        }}
       >
-        <Tab.Screen
-          name="Home"
-          component={HomeScreen}
+        <Stack.Screen
+          name="RoleSelection"
+          component={RoleSelectionScreen}
+          options={{ headerShown: false }}
         />
+        <Stack.Screen
+          name="Customer"
+          component={CustomerNavigator}
+          options={{
+            title: "Customer Portal",
+            headerBackTitleVisible: false,
 
-        <Tab.Screen
-          name="Book Service"
-          component={BookServiceScreen}
+          }}
         />
-
-        <Tab.Screen
-          name="Bookings"
-          component={BookingHistoryScreen}
+        <Stack.Screen
+          name="Mechanic"
+          component={MechanicNavigator}
+          options={{
+            title: "Mechanic Portal",
+            headerBackTitleVisible: false,
+                headerStyle: {
+                backgroundColor: COLORS.mechanicAccent,
+              },
+          }}
         />
-
-        <Tab.Screen
-          name="Mechanics"
-          component={MechanicsDashboardScreen}
-        />
-      </Tab.Navigator>
+      </Stack.Navigator>
     </NavigationContainer>
   );
 }

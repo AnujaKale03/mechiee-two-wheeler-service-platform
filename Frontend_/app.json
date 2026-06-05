@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "0cada7d8-1f97-448b-a92f-49b15348be3a"
+      }
+    },
+    "android": {
+      "package": "com.anujakale.mechieeservice"
+    }
+  }
+}
