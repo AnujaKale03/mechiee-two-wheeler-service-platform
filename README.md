@@ -1,135 +1,256 @@
-# Mechiee Two Wheeler Service Platform
+# Mechiee Two-Wheeler Service Platform
 
 ## Overview
 
-Mechiee is a full-stack application developed for managing two-wheeler service bookings. The platform allows customers to book bike services, automatically assigns available mechanics based on workload, and supports waitlisting when all mechanics are occupied.
+Mechiee is a full-stack mobile application designed to streamline doorstep two-wheeler service management. The platform enables customers to book vehicle services, automatically assigns mechanics based on real-time workload, and manages booking capacity through an intelligent waitlisting system.
 
-The application consists of:
+The application has been designed with separate customer and mechanic workflows, providing a role-based experience similar to a real-world service management platform.
 
-* React Native (Expo) Frontend
-* Node.js + Express Backend
-* MongoDB Database
+### Tech Stack
 
----
-
-## Features
-
-### Customer Features
-
-* View available services
-* Create service bookings
-* View booking history
-
-### Mechanic Management
-
-* View mechanic dashboard
-* Track active booking counts
-* Automatic workload balancing
-
-### Booking Management
-
-* Automatic mechanic assignment
-* Maximum 3 active bookings per mechanic
-* Waitlisting when all mechanics are busy
-
-### Error Handling
-
-* Input validation
-* API error handling
-* Empty state handling
-* Network failure handling
-
----
-
-## Technology Stack
-
-### Frontend
-
-* React Native
-* Expo
+* React Native (Expo)
 * React Navigation
 * Axios
 * React Native Toast Message
-
-### Backend
-
 * Node.js
 * Express.js
 * MongoDB
 * Mongoose
-* CORS
-* Dotenv
 
 ---
 
-## Project Structure
+# Key Features
 
+## Customer Portal
+
+Customers can:
+
+* Browse available services
+* Book a two-wheeler service
+* View booking history
+* Track booking status
+* View assigned mechanic information
+
+### Customer Screens
+
+* Home
+* Book Service
+* Booking History
+
+---
+
+## Mechanic Portal
+
+Mechanics can:
+
+* View assigned bookings
+* Track active workload
+* Update booking progress
+* Mark jobs as completed
+* Monitor daily booking capacity
+
+### Mechanic Screens
+
+* Team Dashboard
+* Assigned Bookings
+* Booking Status Management
+
+---
+
+# Booking Workflow
+
+Customer creates a booking
+
+↓
+
+Service selected
+
+↓
+
+Automatic mechanic assignment
+
+↓
+
+Booking assigned if mechanic capacity available
+
+↓
+
+Booking status progresses:
+
+ASSIGNED → IN_PROGRESS → COMPLETED
+
+↓
+
+If all mechanics reach daily capacity:
+
+WAITLISTED
+
+---
+
+# Mechanic Assignment Logic
+
+The platform implements automatic workload balancing.
+
+### Assignment Rules
+
+1. Retrieve all mechanics.
+
+2. Calculate today's active bookings for each mechanic.
+
+3. Count only:
+
+   * ASSIGNED
+   * IN_PROGRESS
+
+4. Ignore:
+
+   * COMPLETED
+   * WAITLISTED
+
+5. Sort mechanics by active booking count.
+
+6. Assign booking to the least busy mechanic.
+
+7. If all mechanics have reached capacity:
+
+   * No mechanic is assigned.
+   * Booking is marked as WAITLISTED.
+
+### Daily Capacity Rule
+
+Each mechanic can handle a maximum of:
+
+3 active bookings per day
+
+This capacity is calculated using bookings created during the current day only.
+
+---
+
+# UI & User Experience Improvements
+
+The application includes:
+
+* Dedicated Mechiee branding
+* Role selection screen
+* Customer and mechanic themed interfaces
+* Status badges
+* Dashboard summaries
+* Pull-to-refresh support
+* Loading states
+* Empty states
+* Error handling screens
+* Responsive card-based layouts
+* Consistent spacing and typography
+
+---
+
+# Project Structure
+
+```text
 Task 1/
 
 ├── Backend/
-
-│ ├── config/
-
-│ ├── controllers/
-
-│ ├── middleware/
-
-│ ├── models/
-
-│ ├── routes/
-
-│ ├── services/
-
-│ └── server.js
+│   ├── config/
+│   ├── controllers/
+│   ├── middleware/
+│   ├── models/
+│   ├── routes/
+│   ├── services/
+│   └── server.js
 
 ├── Frontend_/
-
-│ ├── src/
-
-│ │ ├── components/
-
-│ │ ├── navigation/
-
-│ │ ├── screens/
-
-│ │ ├── services/
-
-│ │ └── utils/
-
-│ └── App.js
+│   ├── src/
+│   │   ├── components/
+│   │   ├── navigation/
+│   │   ├── screens/
+│   │   ├── services/
+│   │   └── utils/
+│   └── App.js
 
 ├── README.md
-
 ├── ARCHITECTURE.md
-
 └── Task1 API Collection.postman_collection.json
+```
 
 ---
 
-## Installation
+# API Endpoints
 
-### Backend Setup
+## Services
 
-Navigate to backend:
+### Get Services
+
+```http
+GET /api/services
+```
+
+Returns all available services.
+
+---
+
+## Mechanics
+
+### Get Mechanics
+
+```http
+GET /api/mechanics
+```
+
+Returns mechanic availability and daily workload information.
+
+---
+
+## Bookings
+
+### Get Bookings
+
+```http
+GET /api/bookings
+```
+
+Returns all bookings.
+
+### Create Booking
+
+```http
+POST /api/bookings
+```
+
+Creates a booking and automatically assigns a mechanic if available.
+
+### Update Booking Status
+
+```http
+PATCH /api/bookings/:id/status
+```
+
+Updates booking status.
+
+Supported statuses:
+
+* ASSIGNED
+* IN_PROGRESS
+* COMPLETED
+
+---
+
+# Installation
+
+## Backend Setup
 
 ```bash
 cd Backend
-```
-
-Install dependencies:
-
-```bash
 npm install
 ```
 
-Create .env file:
+Create a `.env` file:
 
 ```env
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
 ```
 
-Start server:
+Start backend:
 
 ```bash
 npm start
@@ -137,79 +258,53 @@ npm start
 
 ---
 
-### Frontend Setup
-
-Navigate to frontend:
+## Frontend Setup
 
 ```bash
 cd Frontend_
-```
-
-Install dependencies:
-
-```bash
 npm install
-```
-
-Start Expo:
-
-```bash
 npx expo start
 ```
 
 ---
 
-## API Endpoints
+# Error Handling
 
-### Services
+The application includes:
 
-GET /api/services
-
-Returns all available services.
-
-### Mechanics
-
-GET /api/mechanics
-
-Returns all mechanics and active booking counts.
-
-### Bookings
-
-GET /api/bookings
-
-Returns all bookings.
-
-POST /api/bookings
-
-Creates a new booking.
+* Form validation
+* API validation
+* Network error handling
+* Booking validation
+* Invalid status protection
+* Empty state handling
+* User-friendly toast notifications
 
 ---
 
-## Mechanic Assignment Logic
+# Documentation
 
-1. Retrieve all mechanics.
-2. Calculate active booking count for each mechanic.
-3. Select mechanic with lowest workload.
-4. If active bookings < 3:
-
-   * Assign mechanic.
-   * Mark booking as ASSIGNED.
-5. Otherwise:
-
-   * Create booking without mechanic.
-   * Mark booking as WAITLISTED.
-
----
-
-## Documentation
-
-Additional documentation is available in:
+Additional project documentation:
 
 * ARCHITECTURE.md
 * Task1 API Collection.postman_collection.json
 
 ---
 
-## Author
+# Future Enhancements
 
-Anuja Kale
+* Authentication & authorization
+* Mechanic login portal
+* Customer profiles
+* Push notifications
+* Service scheduling
+* Payment integration
+* Real-time booking updates
+
+---
+
+# Author
+
+**Anuja Kale**
+
+Mechiee Technical Assessment Submission

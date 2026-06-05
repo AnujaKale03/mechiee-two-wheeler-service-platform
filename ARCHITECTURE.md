@@ -1,16 +1,193 @@
 # Application Architecture
 
-## High-Level Architecture
+# Overview
 
-Frontend (React Native)
-|
-v
-Backend API (Express.js)
-|
-v
-MongoDB Database
+Mechiee Two-Wheeler Service Platform is a full-stack mobile application designed to manage doorstep two-wheeler service bookings.
 
-The frontend communicates with backend REST APIs using Axios. The backend performs business logic and interacts with MongoDB using Mongoose.
+The system consists of:
+
+* React Native (Expo) Mobile Application
+* Node.js + Express REST API
+* MongoDB Database
+
+The application supports separate customer and mechanic workflows, automatic mechanic assignment, booking status tracking, and waitlist management.
+
+---
+
+# High-Level Architecture
+
+```text
++----------------------+
+|  React Native App    |
+| (Customer/Mechanic)  |
++----------+-----------+
+           |
+           | Axios HTTP Requests
+           v
++----------------------+
+|  Express.js Backend  |
+|  REST API Layer      |
++----------+-----------+
+           |
+           | Mongoose ODM
+           v
++----------------------+
+|      MongoDB         |
++----------------------+
+```
+
+---
+
+# Application Flow
+
+## Customer Journey
+
+```text
+Role Selection
+       ↓
+Customer Portal
+       ↓
+Home Screen
+       ↓
+Book Service
+       ↓
+Booking Created
+       ↓
+Mechanic Assigned / Waitlisted
+       ↓
+Booking History
+```
+
+---
+
+## Mechanic Journey
+
+```text
+Role Selection
+       ↓
+Mechanic Portal
+       ↓
+Dashboard
+       ↓
+Assigned Bookings
+       ↓
+Update Status
+       ↓
+Completed Job
+```
+
+---
+
+# Frontend Architecture
+
+## Navigation Structure
+
+### Root Stack Navigator
+
+```text
+Role Selection
+      ├── Customer Navigator
+      └── Mechanic Navigator
+```
+
+---
+
+### Customer Navigator
+
+Bottom Tab Navigation
+
+```text
+Home
+Book Service
+Bookings
+```
+
+---
+
+### Mechanic Navigator
+
+Bottom Tab Navigation
+
+```text
+Dashboard
+My Jobs
+```
+
+---
+
+# Backend Architecture
+
+The backend follows a layered architecture:
+
+```text
+Routes
+   ↓
+Controllers
+   ↓
+Services
+   ↓
+Models
+   ↓
+MongoDB
+```
+
+---
+
+## Responsibilities
+
+### Routes
+
+Defines API endpoints.
+
+Examples:
+
+```text
+/api/services
+/api/mechanics
+/api/bookings
+```
+
+---
+
+### Controllers
+
+Handle request validation and responses.
+
+Examples:
+
+* serviceController.js
+* mechanicController.js
+* bookingController.js
+
+---
+
+### Services
+
+Contains business logic.
+
+Example:
+
+```text
+mechanicAssignmentService.js
+```
+
+Responsible for:
+
+* Workload balancing
+* Capacity validation
+* Waitlist management
+
+---
+
+### Models
+
+MongoDB schemas using Mongoose.
+
+Examples:
+
+* Service
+* Mechanic
+* Booking
 
 ---
 
@@ -70,6 +247,8 @@ Fields:
 * serviceId
 * mechanicId
 * status
+* createdAt
+* updatedAt
 
 Example:
 
@@ -87,93 +266,86 @@ Example:
 
 # Entity Relationships
 
+```text
 Service (1)
-|
-|
-(Many)
-Booking
-|
-|
-(Many)
-Mechanic (1)
+     |
+     |----< Booking >----|
+                          |
+                          |
+                    Mechanic (1)
+```
 
 Relationship Summary:
 
 * One Service can have many Bookings.
-* One Mechanic can handle many Bookings.
+* One Mechanic can have many Bookings.
 * Each Booking belongs to one Service.
 * Each Booking may be assigned to one Mechanic.
+* Waitlisted bookings have no mechanic assigned.
 
 ---
 
 # API Design
 
-## GET /api/services
+## Services
 
-Description:
+### Get Services
 
-Returns all available service packages.
-
-Response:
-
-```json
-[
-  {
-    "_id": "id",
-    "name": "Standard Service",
-    "price": 499
-  }
-]
+```http
+GET /api/services
 ```
+
+Returns all available services.
 
 ---
 
-## GET /api/mechanics
+## Mechanics
 
-Description:
+### Get Mechanics
 
-Returns all mechanics with active booking counts.
+```http
+GET /api/mechanics
+```
 
-Response:
+Returns mechanics with:
+
+* Daily booking count
+* Availability status
+* Capacity information
+
+Example:
 
 ```json
 [
   {
     "_id": "id",
     "name": "Mechanic A",
-    "activeBookingCount": 2
+    "todayBookingCount": 2,
+    "maxCapacity": 3,
+    "isAvailable": true
   }
 ]
 ```
 
 ---
 
-## GET /api/bookings
+## Bookings
 
-Description:
+### Get Bookings
+
+```http
+GET /api/bookings
+```
 
 Returns all bookings.
 
-Response:
-
-```json
-[
-  {
-    "_id": "id",
-    "customerName": "Rahul",
-    "bikeModel": "Activa 6G",
-    "status": "ASSIGNED"
-  }
-]
-```
-
 ---
 
-## POST /api/bookings
+### Create Booking
 
-Description:
-
-Creates a booking and performs mechanic assignment.
+```http
+POST /api/bookings
+```
 
 Request:
 
@@ -185,23 +357,37 @@ Request:
 }
 ```
 
-Response (Assigned):
+Response:
 
 ```json
 {
   "success": true,
   "status": "ASSIGNED",
-  "message": "Booking assigned successfully"
+  "message": "Booking Created Successfully"
 }
 ```
 
-Response (Waitlisted):
+---
+
+### Update Booking Status
+
+```http
+PATCH /api/bookings/:id/status
+```
+
+Updates booking status.
+
+Supported statuses:
+
+* ASSIGNED
+* IN_PROGRESS
+* COMPLETED
+
+Example:
 
 ```json
 {
-  "success": true,
-  "status": "WAITLISTED",
-  "message": "Booking waitlisted"
+  "status": "IN_PROGRESS"
 }
 ```
 
@@ -209,21 +395,56 @@ Response (Waitlisted):
 
 # Mechanic Assignment Logic
 
-Business Rules:
+## Business Rules
 
-1. Each mechanic can handle a maximum of 3 active bookings.
-2. Mechanic with lowest workload receives the next booking.
-3. If multiple mechanics have equal workload, the first available mechanic is selected.
-4. When all mechanics reach maximum capacity, booking is waitlisted.
+* Maximum 3 active bookings per mechanic per day.
+* Capacity is calculated per day, not globally.
+* Only active bookings count toward capacity.
+* Active statuses:
 
-Algorithm:
+  * ASSIGNED
+  * IN_PROGRESS
+
+Ignored statuses:
+
+* COMPLETED
+
+* WAITLISTED
+
+* Booking is assigned to the least busy mechanic.
+
+* If all mechanics reach capacity, booking is waitlisted.
+
+---
+
+## Assignment Algorithm
 
 1. Fetch all mechanics.
-2. Calculate active bookings per mechanic.
+2. Calculate today's active booking count.
 3. Sort mechanics by workload.
 4. Select mechanic with lowest count.
-5. Assign booking if count < 3.
-6. Otherwise create WAITLISTED booking.
+5. If booking count < 3:
+
+   * Assign mechanic.
+   * Mark booking as ASSIGNED.
+6. Otherwise:
+
+   * Create booking without mechanic.
+   * Mark booking as WAITLISTED.
+
+---
+
+# Booking Status Lifecycle
+
+```text
+ASSIGNED
+    ↓
+IN_PROGRESS
+    ↓
+COMPLETED
+```
+
+Mechanics can update booking status from the mobile application.
 
 ---
 
@@ -231,44 +452,76 @@ Algorithm:
 
 ## Logger Middleware
 
-Purpose:
-
 Logs incoming requests.
 
-Example Output:
+Example:
 
+```text
 GET /api/services
-
 POST /api/bookings
+PATCH /api/bookings/:id/status
+```
 
 ---
 
-# Assumptions
+## Error Middleware
 
-1. All mechanics have equal skill levels.
-2. Maximum workload per mechanic is fixed at 3 active bookings.
-3. Waitlisted bookings are not automatically reassigned.
-4. Authentication and authorization are not required for this assignment.
-5. Service records and mechanic records are pre-seeded in the database.
-6. Only booking creation workflow is implemented.
+Provides centralized error handling and API error responses.
 
 ---
 
 # Design Decisions
 
-* Service layer used to separate business logic from controllers.
-* Axios service layer used on frontend for API integration.
-* MongoDB chosen for flexible document storage.
-* Express middleware used for logging and request processing.
-* Waitlisting implemented to prevent mechanic overload.
+## Role-Based Navigation
+
+Customer and mechanic workflows are separated to improve usability and mimic a real-world product experience.
+
+---
+
+## Daily Capacity Management
+
+Mechanic workload is calculated using active bookings created during the current day, ensuring fair distribution and preventing overload.
+
+---
+
+## Service Layer Pattern
+
+Business logic is separated from controllers to improve maintainability and scalability.
+
+---
+
+## Waitlist Strategy
+
+When all mechanics reach capacity, bookings are waitlisted rather than rejected to preserve customer requests.
+
+---
+
+# Assumptions
+
+* All mechanics have equal skill levels.
+* Maximum capacity is fixed at three active bookings per day.
+* Waitlisted bookings are not automatically reassigned.
+* Service and mechanic data are pre-seeded.
+* Authentication is outside the scope of this assessment.
 
 ---
 
 # Future Enhancements
 
-* User authentication
-* Mechanic login portal
-* Booking status updates
-* Waitlist reassignment automation
-* Admin dashboard
-* Notifications and reminders
+* Authentication & Authorization
+* Customer Accounts
+* Mechanic Login Portal
+* Admin Dashboard
+* Automatic Waitlist Reassignment
+* Push Notifications
+* Service Scheduling
+* Payment Integration
+* Analytics Dashboard
+
+---
+
+# Author
+
+Anuja Kale
+
+Mechiee Technical Assessment Submission
