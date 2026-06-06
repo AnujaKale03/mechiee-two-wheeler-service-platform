@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity,} from "react-native";
+import {
+  View, Text, FlatList, StyleSheet,
+  ActivityIndicator, TouchableOpacity, Image,
+} from "react-native";
 import { getMechanics } from "../services/mechanicService";
 import MechanicCard from "../components/MechanicCard";
 import { COLORS, FONTS, RADIUS, SPACING } from "../utils/theme";
@@ -10,9 +13,7 @@ export default function MechanicsDashboardScreen() {
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchMechanics();
-  }, []);
+  useEffect(() => { fetchMechanics(); }, []);
 
   const fetchMechanics = async (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -47,28 +48,35 @@ export default function MechanicsDashboardScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Team Dashboard</Text>
+        {/* Logo top-right */}
+        <View style={styles.headerTop}>
+          <Text style={styles.title}>Team Dashboard</Text>
+          <View style={styles.logoWrap}>
+            <Image
+              source={require("../assets/logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
         <Text style={styles.subtitle}>Today's mechanic availability</Text>
-        {/* Summary row */}
+
+        {/* Summary */}
         <View style={styles.summaryRow}>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryNum}>{total}</Text>
-            <Text style={styles.summaryLabel}>Total</Text>
-          </View>
-          <View style={[styles.summaryBox, styles.summaryBoxGreen]}>
-            <Text style={[styles.summaryNum, { color: COLORS.success }]}>{available}</Text>
-            <Text style={styles.summaryLabel}>Available</Text>
-          </View>
-          <View style={[styles.summaryBox, styles.summaryBoxRed]}>
-            <Text style={[styles.summaryNum, { color: COLORS.error }]}>{total - available}</Text>
-            <Text style={styles.summaryLabel}>Full</Text>
-          </View>
+          {[
+            { num: total,           label: "Total",     color: COLORS.textInverse,  bg: "rgba(255,255,255,0.15)" },
+            { num: available,       label: "Available", color: COLORS.success,      bg: "rgba(5,150,105,0.22)" },
+            { num: total-available, label: "Full",      color: COLORS.error,        bg: "rgba(220,38,38,0.22)" },
+          ].map(({ num, label, color, bg }) => (
+            <View key={label} style={[styles.summaryBox, { backgroundColor: bg }]}>
+              <Text style={[styles.summaryNum, { color }]}>{num}</Text>
+              <Text style={styles.summaryLabel}>{label}</Text>
+            </View>
+          ))}
         </View>
       </View>
 
-      {/* Error */}
       {error ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>⚠️  {error}</Text>
@@ -78,7 +86,6 @@ export default function MechanicsDashboardScreen() {
         </View>
       ) : null}
 
-      {/* List */}
       <FlatList
         data={mechanics}
         keyExtractor={(item) => item._id}
@@ -91,7 +98,7 @@ export default function MechanicsDashboardScreen() {
             <View style={styles.emptyBox}>
               <Text style={styles.emptyIcon}>👷</Text>
               <Text style={styles.emptyTitle}>No Mechanics Found</Text>
-              <Text style={styles.emptyDesc}>No mechanics are registered yet.</Text>
+              <Text style={styles.emptyDesc}>No mechanics registered yet.</Text>
             </View>
           ) : null
         }
@@ -103,47 +110,50 @@ export default function MechanicsDashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   loader: {
-    flex: 1, justifyContent: "center", alignItems: "center",
-    backgroundColor: COLORS.bg,
+    flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.bg,
   },
   loaderText: { fontSize: 15, ...FONTS.medium, color: COLORS.textSecondary, marginTop: SPACING.sm },
+
   header: {
     backgroundColor: COLORS.mechanicAccent,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.xl,
     paddingBottom: SPACING.xxl,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
   },
-  title: { fontSize: 28, ...FONTS.extraBold, color: COLORS.textInverse },
-  subtitle: { fontSize: 14, ...FONTS.regular, color: "rgba(255,255,255,0.75)", marginTop: 4 },
-  summaryRow: {
-    flexDirection: "row",
-    marginTop: SPACING.lg,
-    gap: SPACING.sm,
-  },
-  summaryBox: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    alignItems: "center",
-  },
-  summaryBoxGreen: { backgroundColor: "rgba(22,163,74,0.18)" },
-  summaryBoxRed: { backgroundColor: "rgba(220,38,38,0.18)" },
-  summaryNum: { fontSize: 26, ...FONTS.extraBold, color: COLORS.textInverse },
-  summaryLabel: { fontSize: 12, ...FONTS.medium, color: "rgba(255,255,255,0.75)", marginTop: 2 },
-  errorBox: {
-    margin: SPACING.lg,
-    padding: SPACING.md,
-    backgroundColor: COLORS.errorBg,
-    borderRadius: RADIUS.md,
+  headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    marginBottom: 4,
+  },
+  title: { fontSize: 26, ...FONTS.extraBold, color: COLORS.textInverse },
+  logoWrap: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+  },
+  logo: { width: 90, height: 30 },
+  subtitle: { fontSize: 13, ...FONTS.regular, color: COLORS.textInverseMuted, marginBottom: SPACING.lg },
+
+  summaryRow: { flexDirection: "row", gap: SPACING.sm },
+  summaryBox: {
+    flex: 1, borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md, alignItems: "center",
+  },
+  summaryNum: { fontSize: 26, ...FONTS.extraBold },
+  summaryLabel: { fontSize: 12, ...FONTS.medium, color: COLORS.textInverseMuted, marginTop: 2 },
+
+  errorBox: {
+    margin: SPACING.lg, padding: SPACING.md,
+    backgroundColor: COLORS.errorBg, borderRadius: RADIUS.md,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
   },
   errorText: { fontSize: 13, ...FONTS.medium, color: COLORS.error, flex: 1 },
   retryText: { fontSize: 13, ...FONTS.bold, color: COLORS.mechanicAccent },
+
   listContent: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xxl, paddingTop: SPACING.sm },
   emptyBox: { alignItems: "center", paddingTop: SPACING.xxl },
   emptyIcon: { fontSize: 52, marginBottom: SPACING.md },

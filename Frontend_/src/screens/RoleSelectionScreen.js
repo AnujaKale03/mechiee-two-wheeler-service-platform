@@ -1,178 +1,194 @@
 import React from "react";
-import {View, Text, TouchableOpacity, StyleSheet, StatusBar, Image,} from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  Image,
+  ScrollView,
+} from "react-native";
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from "../utils/theme";
 
 export default function RoleSelectionScreen({ navigation }) {
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+      bounces={false}
+    >
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-      {/* Header band */}
-      <View style={styles.header}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoText}>M</Text>
+      {/* Hero */}
+      <View style={styles.hero}>
+        <View style={styles.logoCard}>
+          <Image
+            source={require("../assets/logo.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
         </View>
-        <Text style={styles.brand}>Mechiee</Text>
-        <Text style={styles.tagline}>Doorstep Two-Wheeler Service</Text>
+        <Text style={styles.tagline}>Your Trusted Mechanical Service</Text>
       </View>
 
-      {/* Role cards */}
+      {/* Body */}
       <View style={styles.body}>
-        <Text style={styles.prompt}>I am a…</Text>
+        <Text style={styles.prompt}>Continue as</Text>
 
+        {/* Customer */}
         <TouchableOpacity
-          style={[styles.roleCard, styles.customerCard]}
+          style={styles.roleCard}
           onPress={() => navigation.navigate("Customer")}
-          activeOpacity={0.85}
+          activeOpacity={0.82}
         >
-          <View style={styles.roleIconWrap}>
-            <Text style={styles.roleIcon}>🏍️</Text>
+          <View style={[styles.roleIconWrap, { backgroundColor: COLORS.primaryFaint }]}>
+            <Text style={styles.roleEmoji}>🏍️</Text>
           </View>
           <View style={styles.roleInfo}>
             <Text style={styles.roleTitle}>Customer</Text>
             <Text style={styles.roleDesc}>Book services, track your repairs</Text>
           </View>
-          <Text style={styles.arrow}>›</Text>
+          <View style={[styles.arrowWrap, { backgroundColor: COLORS.primaryFaint }]}>
+            <Text style={[styles.arrow, { color: COLORS.primary }]}>›</Text>
+          </View>
         </TouchableOpacity>
 
+        {/* Mechanic */}
         <TouchableOpacity
           style={[styles.roleCard, styles.mechanicCard]}
           onPress={() => navigation.navigate("Mechanic")}
-          activeOpacity={0.85}
+          activeOpacity={0.82}
         >
-          <View style={[styles.roleIconWrap, styles.mechanicIconWrap]}>
-            <Text style={styles.roleIcon}>🔧</Text>
+          <View style={[styles.roleIconWrap, { backgroundColor: COLORS.mechanicAccentLight }]}>
+            <Text style={styles.roleEmoji}>🔧</Text>
           </View>
           <View style={styles.roleInfo}>
-            <Text style={[styles.roleTitle, styles.mechanicTitle]}>
-              Mechanic
-            </Text>
+            <Text style={[styles.roleTitle, { color: COLORS.mechanicAccent }]}>Mechanic</Text>
             <Text style={styles.roleDesc}>View & manage your assignments</Text>
           </View>
-          <Text style={[styles.arrow, styles.mechanicArrow]}>›</Text>
+          <View style={[styles.arrowWrap, { backgroundColor: COLORS.mechanicAccentLight }]}>
+            <Text style={[styles.arrow, { color: COLORS.mechanicAccent }]}>›</Text>
+          </View>
         </TouchableOpacity>
 
-        <Text style={styles.footer}>
-          Trusted by thousands of riders across India
-        </Text>
+        {/* Trust badge */}
+        <View style={styles.trustRow}>
+          <Text style={styles.trustDot}>⭐</Text>
+          <Text style={styles.trustText}>Trusted by thousands of riders across India</Text>
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  header: {
+  scroll: { flex: 1, backgroundColor: COLORS.bg },
+  container: { flexGrow: 1 },
+
+  hero: {
     backgroundColor: COLORS.primary,
-    paddingTop: 80,
-    paddingBottom: 48,
     alignItems: "center",
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
+    paddingTop: 72,
+    paddingBottom: 52,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
-  logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.textInverse,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: SPACING.sm,
-    ...SHADOW.md,
+  logoCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.md,
+    ...SHADOW.lg,
   },
-  logoText: {
-    fontSize: 36,
-    ...FONTS.extraBold,
-    color: COLORS.primary,
-  },
-  brand: {
-    fontSize: 34,
-    ...FONTS.extraBold,
-    color: COLORS.textInverse,
-    letterSpacing: 1,
+  logo: {
+    width: 200,
+    height: 60,
   },
   tagline: {
-    fontSize: 14,
-    ...FONTS.regular,
-    color: "rgba(255,255,255,0.82)",
-    marginTop: 4,
+    fontSize: 13,
+    ...FONTS.medium,
+    color: COLORS.textInverseMuted,
+    letterSpacing: 0.3,
   },
+
   body: {
     flex: 1,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.xl,
+    paddingBottom: SPACING.xxl,
   },
   prompt: {
-    fontSize: 18,
+    fontSize: 13,
     ...FONTS.semiBold,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
     marginBottom: SPACING.md,
   },
+
   roleCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: SPACING.md,
+    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
+    padding: SPACING.md,
     marginBottom: SPACING.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
     ...SHADOW.md,
   },
-  customerCard: {
-    backgroundColor: COLORS.surface,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
-  },
   mechanicCard: {
-    backgroundColor: COLORS.surface,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.mechanicAccent,
+    borderColor: COLORS.mechanicAccentLight,
   },
+
   roleIconWrap: {
     width: 52,
     height: 52,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryFaint,
     alignItems: "center",
     justifyContent: "center",
     marginRight: SPACING.md,
   },
-  mechanicIconWrap: {
-    backgroundColor: COLORS.mechanicAccentLight,
-  },
-  roleIcon: {
-    fontSize: 26,
-  },
-  roleInfo: {
-    flex: 1,
-  },
+  roleEmoji: { fontSize: 26 },
+  roleInfo: { flex: 1 },
   roleTitle: {
-    fontSize: 18,
+    fontSize: 17,
     ...FONTS.bold,
-    color: COLORS.textPrimary,
-  },
-  mechanicTitle: {
-    color: COLORS.mechanicAccent,
+    color: COLORS.primary,
+    marginBottom: 3,
   },
   roleDesc: {
     fontSize: 13,
     ...FONTS.regular,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    lineHeight: 18,
+  },
+
+  arrowWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: RADIUS.full,
+    alignItems: "center",
+    justifyContent: "center",
   },
   arrow: {
-    fontSize: 28,
-    color: COLORS.primary,
+    fontSize: 22,
     ...FONTS.bold,
+    lineHeight: 28,
   },
-  mechanicArrow: {
-    color: COLORS.mechanicAccent,
-  },
-  footer: {
-    textAlign: "center",
-    fontSize: 13,
-    color: COLORS.textMuted,
+
+  trustRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: SPACING.xl,
+    gap: SPACING.xs,
+  },
+  trustDot: { fontSize: 13 },
+  trustText: {
+    fontSize: 13,
+    ...FONTS.regular,
+    color: COLORS.textMuted,
   },
 });
