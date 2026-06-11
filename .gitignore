@@ -7,3 +7,6 @@ Frontend_/dist/
 .vscode/
 
 npm-debug.log*
+google-services.json
+*.keystore
+*.jks
