@@ -1,310 +1,105 @@
-# Mechiee Two-Wheeler Service Platform
+# Mechiee — Fix & Run Guide
 
-## Overview
+## Files in this folder — where each one goes
 
-Mechiee is a full-stack mobile application designed to streamline doorstep two-wheeler service management. The platform enables customers to book vehicle services, automatically assigns mechanics based on real-time workload, and manages booking capacity through an intelligent waitlisting system.
+```
+Backend/
+  server.js              → replace your Backend/server.js
+  .env                   → replace your Backend/.env
+  package.json           → replace your Backend/package.json
+  controllers/
+    authController.js    → NEW — place in Backend/controllers/
+  routes/
+    authRoutes.js        → NEW — place in Backend/routes/
+  middleware/
+    authMiddleware.js    → replace your Backend/middleware/authMiddleware.js
+  models/
+    User.js              → replace your Backend/models/User.js
 
-The application has been designed with separate customer and mechanic workflows, providing a role-based experience similar to a real-world service management platform.
-
-### Tech Stack
-
-* React Native (Expo)
-* React Navigation
-* Axios
-* React Native Toast Message
-* Node.js
-* Express.js
-* MongoDB
-* Mongoose
-
----
-
-# Key Features
-
-## Customer Portal
-
-Customers can:
-
-* Browse available services
-* Book a two-wheeler service
-* View booking history
-* Track booking status
-* View assigned mechanic information
-
-### Customer Screens
-
-* Home
-* Book Service
-* Booking History
-
----
-
-## Mechanic Portal
-
-Mechanics can:
-
-* View assigned bookings
-* Track active workload
-* Update booking progress
-* Mark jobs as completed
-* Monitor daily booking capacity
-
-### Mechanic Screens
-
-* Team Dashboard
-* Assigned Bookings
-* Booking Status Management
-
----
-
-# Booking Workflow
-
-Customer creates a booking
-
-↓
-
-Service selected
-
-↓
-
-Automatic mechanic assignment
-
-↓
-
-Booking assigned if mechanic capacity available
-
-↓
-
-Booking status progresses:
-
-ASSIGNED → IN_PROGRESS → COMPLETED
-
-↓
-
-If all mechanics reach daily capacity:
-
-WAITLISTED
-
----
-
-# Mechanic Assignment Logic
-
-The platform implements automatic workload balancing.
-
-### Assignment Rules
-
-1. Retrieve all mechanics.
-
-2. Calculate today's active bookings for each mechanic.
-
-3. Count only:
-
-   * ASSIGNED
-   * IN_PROGRESS
-
-4. Ignore:
-
-   * COMPLETED
-   * WAITLISTED
-
-5. Sort mechanics by active booking count.
-
-6. Assign booking to the least busy mechanic.
-
-7. If all mechanics have reached capacity:
-
-   * No mechanic is assigned.
-   * Booking is marked as WAITLISTED.
-
-### Daily Capacity Rule
-
-Each mechanic can handle a maximum of:
-
-3 active bookings per day
-
-This capacity is calculated using bookings created during the current day only.
-
----
-
-# UI & User Experience Improvements
-
-The application includes:
-
-* Dedicated Mechiee branding
-* Role selection screen
-* Customer and mechanic themed interfaces
-* Status badges
-* Dashboard summaries
-* Pull-to-refresh support
-* Loading states
-* Empty states
-* Error handling screens
-* Responsive card-based layouts
-* Consistent spacing and typography
-
----
-
-# Project Structure
-
-```text
-Task 1/
-
-├── Backend/
-│   ├── config/
-│   ├── controllers/
-│   ├── middleware/
-│   ├── models/
-│   ├── routes/
-│   ├── services/
-│   └── server.js
-
-├── Frontend_/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── navigation/
-│   │   ├── screens/
-│   │   ├── services/
-│   │   └── utils/
-│   └── App.js
-
-├── README.md
-├── ARCHITECTURE.md
-└── Task1 API Collection.postman_collection.json
+Frontend_/
+  package.json           → replace your Frontend_/package.json
+  src/
+    utils/
+      authApi.js         → replace your Frontend_/src/utils/authApi.js
+    services/
+      authService.js     → NEW — place in Frontend_/src/services/
 ```
 
 ---
 
-# API Endpoints
+## Step 1 — Fix Firebase API key
 
-## Services
+Your `firebase.js` has a broken apiKey. Open Firebase Console:
+1. Go to Project Settings → Your apps → Web app
+2. Copy the fresh config
+3. Replace the whole `firebaseConfig` object in `Frontend_/src/config/firebase.js`
 
-### Get Services
-
-```http
-GET /api/services
-```
-
-Returns all available services.
+The key should look like: `AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX` (no trailing quote or extra character)
 
 ---
 
-## Mechanics
-
-### Get Mechanics
-
-```http
-GET /api/mechanics
-```
-
-Returns mechanic availability and daily workload information.
-
----
-
-## Bookings
-
-### Get Bookings
-
-```http
-GET /api/bookings
-```
-
-Returns all bookings.
-
-### Create Booking
-
-```http
-POST /api/bookings
-```
-
-Creates a booking and automatically assigns a mechanic if available.
-
-### Update Booking Status
-
-```http
-PATCH /api/bookings/:id/status
-```
-
-Updates booking status.
-
-Supported statuses:
-
-* ASSIGNED
-* IN_PROGRESS
-* COMPLETED
-
----
-
-# Installation
-
-## Backend Setup
+## Step 2 — Backend setup
 
 ```bash
 cd Backend
+
+# Copy files from this fix folder first, then:
 npm install
+
+# Start backend
+npm run dev
 ```
 
-Create a `.env` file:
-
-```env
-PORT=5000
-MONGO_URI=your_mongodb_connection_string
+You should see:
+```
+Server running on port 5000
+MongoDB Connected
 ```
 
-Start backend:
-
-```bash
-npm start
-```
+Test it: open browser → http://localhost:5000/
+Should show: `Mechiee API Running ✅`
 
 ---
 
-## Frontend Setup
+## Step 3 — Frontend setup
 
 ```bash
 cd Frontend_
+
+# Copy files from this fix folder first, then:
 npm install
-npx expo start
+
+# Start Expo
+npx expo start --clear
 ```
 
----
-
-# Error Handling
-
-The application includes:
-
-* Form validation
-* API validation
-* Network error handling
-* Booking validation
-* Invalid status protection
-* Empty state handling
-* User-friendly toast notifications
+Press `a` to open Android emulator.
 
 ---
 
-# Documentation
+## Step 4 — Test login flow
 
-Additional project documentation:
-
-* ARCHITECTURE.md
-* Task1 API Collection.postman_collection.json
-
----
-
-# Future Enhancements
-
-* Authentication & authorization
-* Mechanic login portal
-* Customer profiles
-* Push notifications
-* Service scheduling
-* Payment integration
-* Real-time booking updates
+1. App opens → WelcomeScreen
+2. Select role (Customer / Mechanic)
+3. PhoneEntryScreen → enter your real phone number
+4. OTP arrives via SMS (Twilio) → enter it
+5. Should navigate to HomeScreen
 
 ---
 
-# Author
+## Common errors and fixes
 
-**Anuja Kale**
+| Error | Fix |
+|-------|-----|
+| `Cannot find module '../routes/authRoutes'` | You didn't copy authRoutes.js — do step 2 above |
+| `OTP not received` | Twilio trial accounts only send to verified numbers. Add your number at twilio.com/console |
+| `Network Error` on emulator | Backend not running. Run `npm run dev` in Backend folder first |
+| `Firebase: Error (auth/invalid-api-key)` | Fix firebase.js apiKey — see Step 1 |
+| `Metro bundler error: firebase-admin` | You have old node_modules. Delete `Frontend_/node_modules` and run `npm install` again |
 
-Mechiee Technical Assessment Submission
+---
+
+## Twilio trial account note
+
+On a free Twilio account, OTPs only go to **verified** phone numbers.
+To verify your number: https://console.twilio.com/us1/develop/phone-numbers/manage/verified

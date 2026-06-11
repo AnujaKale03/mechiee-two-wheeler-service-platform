@@ -1,12 +1,20 @@
 {
   "expo": {
+    "name": "MechieeService",
+    "slug": "mechiee-service",
+    "version": "1.0.0",
+    "plugins": [
+      "expo-font",
+      "expo-splash-screen"
+    ],
+    "android": {
+      "package": "com.anujakale.mechieeservice",
+      "googleServicesFile": "./google-services.json"
+    },
     "extra": {
       "eas": {
         "projectId": "0cada7d8-1f97-448b-a92f-49b15348be3a"
       }
-    },
-    "android": {
-      "package": "com.anujakale.mechieeservice"
     }
   }
 }

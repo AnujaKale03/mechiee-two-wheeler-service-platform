@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
-import {View, Text, FlatList, ActivityIndicator,StyleSheet,TouchableOpacity,} from "react-native";
+import {
+  View, Text, FlatList, ActivityIndicator,
+  StyleSheet, TouchableOpacity,
+} from "react-native";
 import { getBookings, updateBookingStatus } from "../services/bookingService";
 import MechanicBookingCard from "../components/MechanicBookingCard";
 import Toast from "react-native-toast-message";
@@ -14,14 +17,13 @@ export default function AssignedBookingsScreen() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [error, setError] = useState("");
 
+  useEffect(() => { fetchBookings(); }, []);
+
   const fetchBookings = async (showLoader = true) => {
     if (showLoader) setLoading(true);
     try {
       const response = await getBookings();
-      const assignedBookings = response.data.filter(
-        (b) => b.status !== "WAITLISTED"
-      );
-      setBookings(assignedBookings);
+      setBookings(response.data.filter((b) => b.status !== "WAITLISTED"));
       setError("");
     } catch {
       setError("Failed to load bookings.");
@@ -29,10 +31,6 @@ export default function AssignedBookingsScreen() {
       if (showLoader) setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchBookings();
-  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -54,10 +52,9 @@ export default function AssignedBookingsScreen() {
     }
   };
 
-  const filtered =
-    activeFilter === "All"
-      ? bookings
-      : bookings.filter((b) => b.status === activeFilter);
+  const filtered = activeFilter === "All"
+    ? bookings
+    : bookings.filter((b) => b.status === activeFilter);
 
   if (loading) {
     return (
@@ -70,32 +67,31 @@ export default function AssignedBookingsScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header — pastel sage */}
       <View style={styles.header}>
         <Text style={styles.title}>My Assignments</Text>
         <Text style={styles.subtitle}>{bookings.length} booking{bookings.length !== 1 ? "s" : ""} assigned</Text>
       </View>
 
       {/* Filter chips */}
-      <View style={styles.filterRow}>
-        <FlatList
-          data={FILTERS}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: SPACING.lg, gap: SPACING.sm }}
-          keyExtractor={(item) => item}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.chip, activeFilter === item && styles.chipActive]}
-              onPress={() => setActiveFilter(item)}
-            >
-              <Text style={[styles.chipText, activeFilter === item && styles.chipTextActive]}>
-                {item === "All" ? "All" : item.replace("_", " ")}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
-      </View>
+      <FlatList
+        data={FILTERS}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterList}
+        style={styles.filterRow}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={[styles.chip, activeFilter === item && styles.chipActive]}
+            onPress={() => setActiveFilter(item)}
+          >
+            <Text style={[styles.chipText, activeFilter === item && styles.chipTextActive]}>
+              {item === "All" ? "All" : item.replace("_", " ")}
+            </Text>
+          </TouchableOpacity>
+        )}
+      />
 
       {error ? (
         <View style={styles.errorBox}>
@@ -130,38 +126,37 @@ export default function AssignedBookingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  loader: {
-    flex: 1, justifyContent: "center", alignItems: "center",
-    backgroundColor: COLORS.bg,
-  },
+  loader: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.bg },
   loaderText: { fontSize: 15, ...FONTS.medium, color: COLORS.textSecondary, marginTop: SPACING.sm },
+
   header: {
-    backgroundColor: COLORS.mechanicAccent,
+    backgroundColor: COLORS.mechanicAccentPastel,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl,
-    paddingBottom: SPACING.xxl,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingTop: SPACING.xl, paddingBottom: SPACING.xxl,
+    borderBottomLeftRadius: 32, borderBottomRightRadius: 32,
+    borderBottomWidth: 1.5, borderBottomColor: COLORS.mechanicAccentLight,
   },
-  title: { fontSize: 28, ...FONTS.extraBold, color: COLORS.textInverse },
-  subtitle: { fontSize: 14, ...FONTS.regular, color: "rgba(255,255,255,0.75)", marginTop: 4 },
-  filterRow: { marginTop: -SPACING.md, marginBottom: SPACING.sm },
+  title: { fontSize: 28, ...FONTS.extraBold, color: COLORS.textOnMechanic },
+  subtitle: { fontSize: 14, ...FONTS.regular, color: COLORS.textOnMechanicMuted, marginTop: 4 },
+
+  filterRow: { marginTop: -SPACING.md, marginBottom: SPACING.xs },
+  filterList: { paddingHorizontal: SPACING.lg, gap: SPACING.sm },
   chip: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs + 2,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs + 2,
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.surface,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderWidth: 1.5, borderColor: COLORS.border,
   },
   chipActive: { backgroundColor: COLORS.mechanicAccent, borderColor: COLORS.mechanicAccent },
   chipText: { fontSize: 13, ...FONTS.semiBold, color: COLORS.textSecondary },
   chipTextActive: { color: COLORS.textInverse },
+
   errorBox: {
     margin: SPACING.lg, padding: SPACING.md,
     backgroundColor: COLORS.errorBg, borderRadius: RADIUS.md,
   },
   errorText: { fontSize: 13, ...FONTS.medium, color: COLORS.error },
+
   listContent: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xxl, paddingTop: SPACING.sm },
   emptyBox: { alignItems: "center", paddingTop: SPACING.xxl },
   emptyIcon: { fontSize: 52, marginBottom: SPACING.md },

@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { getMechanics } from "../services/mechanicService";
 import MechanicCard from "../components/MechanicCard";
-import { COLORS, FONTS, RADIUS, SPACING } from "../utils/theme";
+import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from "../utils/theme";
 
 export default function MechanicsDashboardScreen() {
   const [mechanics, setMechanics] = useState([]);
@@ -35,7 +35,6 @@ export default function MechanicsDashboardScreen() {
   };
 
   const available = mechanics.filter((m) => m.isAvailable).length;
-  const total = mechanics.length;
 
   if (loading) {
     return (
@@ -48,10 +47,13 @@ export default function MechanicsDashboardScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Header — pastel sage */}
       <View style={styles.header}>
-        {/* Logo top-right */}
         <View style={styles.headerTop}>
-          <Text style={styles.title}>Team Dashboard</Text>
+          <View>
+            <Text style={styles.title}>Team Dashboard</Text>
+            <Text style={styles.subtitle}>Today's mechanic availability</Text>
+          </View>
           <View style={styles.logoWrap}>
             <Image
               source={require("../assets/logo.png")}
@@ -60,15 +62,14 @@ export default function MechanicsDashboardScreen() {
             />
           </View>
         </View>
-        <Text style={styles.subtitle}>Today's mechanic availability</Text>
 
-        {/* Summary */}
+        {/* Summary boxes */}
         <View style={styles.summaryRow}>
           {[
-            { num: total,           label: "Total",     color: COLORS.textInverse,  bg: "rgba(255,255,255,0.15)" },
-            { num: available,       label: "Available", color: COLORS.success,      bg: "rgba(5,150,105,0.22)" },
-            { num: total-available, label: "Full",      color: COLORS.error,        bg: "rgba(220,38,38,0.22)" },
-          ].map(({ num, label, color, bg }) => (
+            { num: mechanics.length,  label: "Total",     bg: "rgba(20,92,52,0.12)",  color: COLORS.textOnMechanic },
+            { num: available,         label: "Available", bg: "rgba(5,150,105,0.18)", color: COLORS.success },
+            { num: mechanics.length - available, label: "Full", bg: "rgba(185,28,28,0.14)", color: COLORS.error },
+          ].map(({ num, label, bg, color }) => (
             <View key={label} style={[styles.summaryBox, { backgroundColor: bg }]}>
               <Text style={[styles.summaryNum, { color }]}>{num}</Text>
               <Text style={styles.summaryLabel}>{label}</Text>
@@ -109,34 +110,29 @@ export default function MechanicsDashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  loader: {
-    flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.bg,
-  },
+  loader: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.bg },
   loaderText: { fontSize: 15, ...FONTS.medium, color: COLORS.textSecondary, marginTop: SPACING.sm },
 
   header: {
-    backgroundColor: COLORS.mechanicAccent,
+    backgroundColor: COLORS.mechanicAccentPastel,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl,
-    paddingBottom: SPACING.xxl,
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
+    paddingTop: SPACING.xl, paddingBottom: SPACING.xxl,
+    borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
+    borderBottomWidth: 1.5, borderBottomColor: COLORS.mechanicAccentLight,
   },
   headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 4,
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "flex-start", marginBottom: SPACING.lg,
   },
-  title: { fontSize: 26, ...FONTS.extraBold, color: COLORS.textInverse },
+  title: { fontSize: 26, ...FONTS.extraBold, color: COLORS.textOnMechanic },
+  subtitle: { fontSize: 13, ...FONTS.regular, color: COLORS.textOnMechanicMuted, marginTop: 3 },
   logoWrap: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
+    paddingHorizontal: SPACING.sm, paddingVertical: 4,
+    ...SHADOW.sm,
   },
   logo: { width: 90, height: 30 },
-  subtitle: { fontSize: 13, ...FONTS.regular, color: COLORS.textInverseMuted, marginBottom: SPACING.lg },
 
   summaryRow: { flexDirection: "row", gap: SPACING.sm },
   summaryBox: {
@@ -144,7 +140,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md, alignItems: "center",
   },
   summaryNum: { fontSize: 26, ...FONTS.extraBold },
-  summaryLabel: { fontSize: 12, ...FONTS.medium, color: COLORS.textInverseMuted, marginTop: 2 },
+  summaryLabel: { fontSize: 12, ...FONTS.medium, color: COLORS.textOnMechanicMuted, marginTop: 2 },
 
   errorBox: {
     margin: SPACING.lg, padding: SPACING.md,

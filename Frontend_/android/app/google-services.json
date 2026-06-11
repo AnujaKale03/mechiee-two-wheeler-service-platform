@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "631193146538",
+    "project_id": "mechiee-app",
+    "storage_bucket": "mechiee-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:631193146538:android:77ae75849e942af2616cd3",
+        "android_client_info": {
+          "package_name": "com.anujakale.mechieeservice"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBURSbuzRdYJq1ayEscPaEo8ubXDPgrNj4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,47 +1,29 @@
 const mongoose = require("mongoose");
-const dotenv = require("dotenv");
+const dotenv   = require("dotenv");
+dotenv.config({ path: "../.env" });
 
-const Service = require("../models/Service");
 const Mechanic = require("../models/Mechanic");
+const Service  = require("../models/Service");
 
-dotenv.config();
+const seed = async () => {
+  await mongoose.connect(process.env.MONGO_URI);
+  await Mechanic.deleteMany({});
+  await Service.deleteMany({});
 
-mongoose.connect(process.env.MONGO_URI);
+  await Mechanic.insertMany([
+    { name: "Mechanic A", pin: "1111", phone: "9876543210" },
+    { name: "Mechanic B", pin: "2222", phone: "9876543211" },
+    { name: "Mechanic C", pin: "3333", phone: "9876543212" },
+  ]);
 
-const seedData = async () => {
-  try {
-    await Service.deleteMany();
-    await Mechanic.deleteMany();
+  await Service.insertMany([
+    { name: "Standard Service", price: 499,  description: "Basic service including oil change, filter cleaning, and inspection.", durationMins: 60 },
+    { name: "Premium Service",  price: 999,  description: "Comprehensive service with brake check, chain lubrication, and full inspection.", durationMins: 90 },
+    { name: "Engine Repair",    price: 1999, description: "Full engine diagnostics and repair by certified mechanics.", durationMins: 180 },
+  ]);
 
-    await Service.insertMany([
-      {
-        name: "Standard Service",
-        price: 499,
-      },
-      {
-        name: "Premium Service",
-        price: 999,
-      },
-      {
-        name: "Engine Repair",
-        price: 1999,
-      },
-    ]);
-
-    await Mechanic.insertMany([
-      { name: "Mechanic A" },
-      { name: "Mechanic B" },
-      { name: "Mechanic C" },
-    ]);
-
-    console.log("Seed Data Inserted");
-
-    process.exit();
-  } catch (error) {
-    console.error(error);
-
-    process.exit(1);
-  }
+  console.log("✅ Seeded mechanics (A:1111, B:2222, C:3333) and services");
+  process.exit(0);
 };
 
-seedData();
+seed().catch((err) => { console.error(err); process.exit(1); });
