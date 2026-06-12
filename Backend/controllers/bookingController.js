@@ -117,7 +117,7 @@ const updateBookingStatus = async (req, res) => {
         booking.paymentStatus = "FAILED";
       }
 
-      await booking.save();
+      await booking.save({ validateBeforeSave: false });
 
       // Notify customer on completion
       if (booking.customerExpoPushToken) {
@@ -132,7 +132,7 @@ const updateBookingStatus = async (req, res) => {
       // Reassign oldest waitlisted booking to freed mechanic slot
       await reassignWaitlisted(booking.mechanicId._id || booking.mechanicId);
     } else {
-      await booking.save();
+      await booking.save({ validateBeforeSave: false });
     }
 
     // Notify customer when mechanic starts
@@ -165,7 +165,7 @@ const cancelBooking = async (req, res) => {
     }
     booking.status      = "CANCELLED";
     booking.cancelledAt = new Date();
-    await booking.save();
+    await booking.save({ validateBeforeSave: false });
     if (booking.mechanicId) await reassignWaitlisted(booking.mechanicId);
     res.status(200).json({ success: true, message: "Booking cancelled", booking });
   } catch (error) {
@@ -185,7 +185,7 @@ const rateBooking = async (req, res) => {
     if (booking.rating) return res.status(400).json({ message: "Already rated" });
     booking.rating = rating;
     booking.ratingComment = comment || null;
-    await booking.save();
+    await booking.save({ validateBeforeSave: false });
     if (booking.mechanicId) {
       const mechanic = await Mechanic.findById(booking.mechanicId);
       if (mechanic) {
@@ -212,12 +212,12 @@ const verifyBookingPayment = async (req, res) => {
     const isValid = verifyPayment(razorpayOrderId, razorpayPaymentId, razorpaySignature);
     if (!isValid) {
       booking.paymentStatus = "FAILED";
-      await booking.save();
+      await booking.save({ validateBeforeSave: false });
       return res.status(400).json({ message: "Payment verification failed" });
     }
     booking.paymentStatus = "PAID";
     booking.paymentId     = razorpayPaymentId;
-    await booking.save();
+    await booking.save({ validateBeforeSave: false });
     res.status(200).json({ success: true, message: "Payment verified", booking });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -233,7 +233,7 @@ const updateETA = async (req, res) => {
     const booking = await Booking.findById(id).populate("serviceId");
     if (!booking) return res.status(404).json({ message: "Booking not found" });
     booking.eta = eta;
-    await booking.save();
+    await booking.save({ validateBeforeSave: false });
     if (booking.customerExpoPushToken) {
       await sendPushNotification(
         booking.customerExpoPushToken,
