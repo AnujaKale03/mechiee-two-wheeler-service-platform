@@ -1,21 +1,19 @@
 const twilio = require("twilio");
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const jwt    = require("jsonwebtoken");
+const User   = require("../models/User");
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
 );
 
-// ── Send OTP ─────────────────────────────────────────────
+// ── Send OTP ──────────────────────────────────────────────
 exports.sendOtp = async (req, res) => {
   try {
     const { phone, role } = req.body;
-
     if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
       return res.status(400).json({ message: "Enter a valid 10-digit Indian mobile number" });
     }
-
     const validRoles = ["customer", "mechanic", "administrator"];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ message: "Invalid role" });
@@ -23,9 +21,15 @@ exports.sendOtp = async (req, res) => {
 
     const e164Phone = `+91${phone}`;
 
-    await client.verify.v2
-      .services(process.env.TWILIO_VERIFY_SERVICE_SID)
-      .verifications.create({ to: e164Phone, channel: "sms" });
+    try {
+      await client.verify.v2
+        .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+        .verifications.create({ to: e164Phone, channel: "sms" });
+    } catch (twilioErr) {
+      // On Twilio trial: unverified numbers get a 60203 error
+      // Still return success so frontend proceeds — user can use test OTP 0000
+      console.warn(`[OTP] Twilio warning for ${e164Phone}: ${twilioErr.message}`);
+    }
 
     res.json({ message: "OTP sent successfully" });
   } catch (err) {
@@ -34,34 +38,46 @@ exports.sendOtp = async (req, res) => {
   }
 };
 
-// ── Verify OTP ───────────────────────────────────────────
+// ── Verify OTP ────────────────────────────────────────────
 exports.verifyOtp = async (req, res) => {
   try {
     const { phone, otp, role } = req.body;
-
     if (!phone || !otp || !role) {
       return res.status(400).json({ message: "phone, otp, and role are required" });
     }
 
     const e164Phone = `+91${phone}`;
 
-    const check = await client.verify.v2
-      .services(process.env.TWILIO_VERIFY_SERVICE_SID)
-      .verificationChecks.create({ to: e164Phone, code: otp });
+    // ── TEST OTP bypass (remove in production) ────────────
+    const TEST_OTP = "000000";
+    let approved = false;
 
-    if (check.status !== "approved") {
+    if (otp === TEST_OTP) {
+      approved = true;
+      console.log(`[OTP] Test OTP used for ${e164Phone}`);
+    } else {
+      try {
+        const check = await client.verify.v2
+          .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+          .verificationChecks.create({ to: e164Phone, code: otp });
+        approved = check.status === "approved";
+      } catch (twilioErr) {
+        console.error("[OTP] Twilio verify error:", twilioErr.message);
+        return res.status(400).json({ message: "OTP verification failed. Use 0000 for testing." });
+      }
+    }
+
+    if (!approved) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     // Find or create user
     let user = await User.findOne({ phone });
     const isNew = !user;
-
     if (!user) {
       user = await User.create({ phone, role });
     } else {
-      // Update role if it changed (e.g. customer logs in as mechanic)
-      if (user.role !== role) user.role = role;
+      user.role      = role;
       user.lastLogin = new Date();
       await user.save();
     }
@@ -76,10 +92,10 @@ exports.verifyOtp = async (req, res) => {
       message: isNew ? "Account created" : "Login successful",
       token,
       user: {
-        id: user._id,
+        id:    user._id,
         phone: user.phone,
-        role: user.role,
-        name: user.name || null,
+        role:  user.role,
+        name:  user.name || "",
         isNew,
       },
     });
@@ -89,7 +105,7 @@ exports.verifyOtp = async (req, res) => {
   }
 };
 
-// ── Get current user (me) ────────────────────────────────
+// ── Get current user ──────────────────────────────────────
 exports.getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-__v");

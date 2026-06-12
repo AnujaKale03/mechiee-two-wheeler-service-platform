@@ -10,44 +10,28 @@ const createBooking = async (req, res) => {
   try {
     console.log("BOOKING BODY:", req.body);
     const { customerName, bikeModel, vehicleNumber, serviceId, customerExpoPushToken } = req.body;
-
     if (!customerName || !bikeModel || !vehicleNumber || !serviceId) {
       return res.status(400).json({ message: "All fields are required" });
     }
-
     const service = await Service.findById(serviceId);
-    console.log("SERVICE FOUND:", service);
     if (!service) return res.status(404).json({ message: "Service not found" });
-
     const assignment = await assignMechanic();
-
     const booking = await Booking.create({
       customerName, bikeModel, vehicleNumber, serviceId,
       mechanicId: assignment.mechanicId,
       status: assignment.status,
       customerExpoPushToken: customerExpoPushToken || null,
-      paymentStatus: "PENDING",  // payment always starts as PENDING
+      paymentStatus: "PENDING",
     });
-
-    // Notify mechanic if assigned
     if (assignment.mechanicId) {
       const mechanic = await Mechanic.findById(assignment.mechanicId);
       if (mechanic?.expoPushToken) {
-        await sendPushNotification(
-          mechanic.expoPushToken,
-          "New Booking Assigned! 🔧",
-          `${customerName}'s ${bikeModel} — ${service.name}`,
-          { bookingId: booking._id }
-        );
+        await sendPushNotification(mechanic.expoPushToken, "New Booking! 🔧", `${customerName}'s ${bikeModel} — ${service.name}`, { bookingId: booking._id });
       }
     }
-
     res.status(201).json({
-      success: true,
-      status: assignment.status,
-      message: assignment.status === "WAITLISTED"
-        ? "No mechanics available. Booking waitlisted."
-        : "Booking created. Payment collected after service completion.",
+      success: true, status: assignment.status,
+      message: assignment.status === "WAITLISTED" ? "No mechanics available. Booking waitlisted." : "Booking created. Pay after service completion.",
       booking,
     });
   } catch (error) {
@@ -56,9 +40,14 @@ const createBooking = async (req, res) => {
 };
 
 // ── GET /bookings ─────────────────────────────────────────
+// Supports ?customerName=Rahul to show only that customer's bookings
 const getBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find()
+    const filter = {};
+    if (req.query.customerName) {
+      filter.customerName = { $regex: new RegExp(`^${req.query.customerName.trim()}$`, "i") };
+    }
+    const bookings = await Booking.find(filter)
       .populate("serviceId")
       .populate("mechanicId", "name avgRating")
       .sort({ createdAt: -1 });
@@ -73,79 +62,42 @@ const updateBookingStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, eta } = req.body;
-
     const allowed = ["IN_PROGRESS", "COMPLETED", "ASSIGNED"];
-    if (!allowed.includes(status)) {
-      return res.status(400).json({ message: `Invalid status. Allowed: ${allowed.join(", ")}` });
-    }
-
+    if (!allowed.includes(status)) return res.status(400).json({ message: `Invalid status` });
     const booking = await Booking.findById(id).populate("serviceId").populate("mechanicId");
     if (!booking) return res.status(404).json({ message: "Booking not found" });
     if (booking.status === "WAITLISTED") return res.status(400).json({ message: "Cannot update a waitlisted booking" });
     if (booking.status === "CANCELLED")  return res.status(400).json({ message: "Cannot update a cancelled booking" });
-
     booking.status = status;
     if (eta) booking.eta = eta;
-
-    // ── Payment on COMPLETION ─────────────────────────────
     if (status === "COMPLETED") {
       booking.completedAt = new Date();
-
       try {
-        // Create Razorpay order at completion time
-        const paymentOrder = await createOrder(
-          booking.serviceId.price,
-          "INR",
-          `booking_${booking._id}`
-        );
-
+        const paymentOrder = await createOrder(booking.serviceId.price, "INR", `booking_${booking._id}`);
         booking.paymentOrderId = paymentOrder.id;
-
         if (paymentOrder.isMock) {
-          // Mock mode — auto-verify immediately
           booking.paymentStatus = "PAID";
-          booking.paymentId     = `mock_pay_${Date.now()}`;
+          booking.paymentId = `mock_pay_${Date.now()}`;
           console.log(`[Payment] Mock payment auto-verified for booking ${booking._id}`);
         } else {
-          // Real Razorpay — mark as AWAITING so customer app can complete it
           booking.paymentStatus = "AWAITING";
-          console.log(`[Payment] Razorpay order created: ${paymentOrder.id}`);
         }
       } catch (payErr) {
         console.error("[Payment] Order creation failed:", payErr.message);
-        // Don't block status update if payment fails
         booking.paymentStatus = "FAILED";
       }
-
       await booking.save({ validateBeforeSave: false });
-
-      // Notify customer on completion
       if (booking.customerExpoPushToken) {
-        await sendPushNotification(
-          booking.customerExpoPushToken,
-          "Service Completed! ✅",
-          `Your ${booking.serviceId?.name} for ${booking.bikeModel} is done. Please rate your experience.`,
-          { bookingId: booking._id, action: "RATE" }
-        );
+        await sendPushNotification(booking.customerExpoPushToken, "Service Completed! ✅", `Your ${booking.serviceId?.name} is done. Please rate your experience.`, { bookingId: booking._id, action: "RATE" });
       }
-
-      // Reassign oldest waitlisted booking to freed mechanic slot
       await reassignWaitlisted(booking.mechanicId._id || booking.mechanicId);
     } else {
       await booking.save({ validateBeforeSave: false });
+      if (status === "IN_PROGRESS" && booking.customerExpoPushToken) {
+        const etaText = eta ? ` ETA: ${eta}.` : "";
+        await sendPushNotification(booking.customerExpoPushToken, "Mechanic On the Way! 🏍️", `${booking.mechanicId?.name} started on your ${booking.bikeModel}.${etaText}`, { bookingId: booking._id });
+      }
     }
-
-    // Notify customer when mechanic starts
-    if (status === "IN_PROGRESS" && booking.customerExpoPushToken) {
-      const etaText = eta ? ` ETA: ${eta}.` : "";
-      await sendPushNotification(
-        booking.customerExpoPushToken,
-        "Mechanic On the Way! 🏍️",
-        `${booking.mechanicId?.name} has started working on your ${booking.bikeModel}.${etaText}`,
-        { bookingId: booking._id }
-      );
-    }
-
     const updated = await Booking.findById(id).populate("serviceId").populate("mechanicId");
     res.status(200).json({ success: true, message: "Booking status updated", booking: updated });
   } catch (error) {
@@ -158,12 +110,10 @@ const updateBookingStatus = async (req, res) => {
 const cancelBooking = async (req, res) => {
   try {
     const { id } = req.params;
-    const booking = await Booking.findById(id).populate("serviceId");
+    const booking = await Booking.findById(id);
     if (!booking) return res.status(404).json({ message: "Booking not found" });
-    if (!["ASSIGNED", "WAITLISTED"].includes(booking.status)) {
-      return res.status(400).json({ message: "Can only cancel ASSIGNED or WAITLISTED bookings" });
-    }
-    booking.status      = "CANCELLED";
+    if (!["ASSIGNED", "WAITLISTED"].includes(booking.status)) return res.status(400).json({ message: "Can only cancel ASSIGNED or WAITLISTED bookings" });
+    booking.status = "CANCELLED";
     booking.cancelledAt = new Date();
     await booking.save({ validateBeforeSave: false });
     if (booking.mechanicId) await reassignWaitlisted(booking.mechanicId);
@@ -202,7 +152,6 @@ const rateBooking = async (req, res) => {
 };
 
 // ── POST /bookings/:id/payment/verify ────────────────────
-// Called when customer completes Razorpay payment in the app
 const verifyBookingPayment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -216,7 +165,7 @@ const verifyBookingPayment = async (req, res) => {
       return res.status(400).json({ message: "Payment verification failed" });
     }
     booking.paymentStatus = "PAID";
-    booking.paymentId     = razorpayPaymentId;
+    booking.paymentId = razorpayPaymentId;
     await booking.save({ validateBeforeSave: false });
     res.status(200).json({ success: true, message: "Payment verified", booking });
   } catch (error) {
@@ -235,12 +184,7 @@ const updateETA = async (req, res) => {
     booking.eta = eta;
     await booking.save({ validateBeforeSave: false });
     if (booking.customerExpoPushToken) {
-      await sendPushNotification(
-        booking.customerExpoPushToken,
-        "ETA Updated ⏱️",
-        `Your mechanic will arrive in ${eta} for ${booking.serviceId?.name}`,
-        { bookingId: booking._id }
-      );
+      await sendPushNotification(booking.customerExpoPushToken, "ETA Updated ⏱️", `Mechanic arrives in ${eta} for ${booking.serviceId?.name}`, { bookingId: booking._id });
     }
     res.status(200).json({ success: true, message: "ETA updated", booking });
   } catch (error) {
@@ -248,7 +192,4 @@ const updateETA = async (req, res) => {
   }
 };
 
-module.exports = {
-  createBooking, getBookings, updateBookingStatus,
-  cancelBooking, rateBooking, verifyBookingPayment, updateETA,
-};
+module.exports = { createBooking, getBookings, updateBookingStatus, cancelBooking, rateBooking, verifyBookingPayment, updateETA };
