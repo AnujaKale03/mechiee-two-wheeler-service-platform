@@ -10,24 +10,15 @@ import * as Device from "expo-device";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import { getServices } from "../../services/serviceService";
-import { createBooking } from "../../services/bookingService";
+import { createBooking } from "../../services/bookingService";   // removed verifyPayment import
 import { BOOKING_STATUS } from "../../utils/constants";
 import { COLORS, FONTS, FONT_SIZE, RADIUS, SHADOW, SPACING } from "../../utils/theme";
 
-// ── Push token helper ──────────────────────────────────────────────────────────
-// expo-notifications is not supported in Expo Go (SDK 53+)
-// Returns null safely in all Expo Go / non-device environments
 const getCustomerPushToken = async () => {
   const isExpoGo = Constants.appOwnership === "expo";
-  if (isExpoGo || !Device.isDevice) {
-    console.log("[PushToken] Skipped — running in Expo Go or non-device.");
-    return null;
-  }
-
+  if (isExpoGo || !Device.isDevice) return null;
   try {
-    // Only import dynamically when NOT in Expo Go (development build / production)
     const Notifications = await import("expo-notifications");
-
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;
     if (existing !== "granted") {
@@ -35,33 +26,20 @@ const getCustomerPushToken = async () => {
       finalStatus = status;
     }
     if (finalStatus !== "granted") return null;
-
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
-        name:       "Default",
-        importance: Notifications.AndroidImportance.MAX,
-        sound:      "default",
+        name: "Default", importance: Notifications.AndroidImportance.MAX, sound: "default",
       });
     }
-
-    const projectId =
-      Constants.expoConfig?.extra?.eas?.projectId ??
-      Constants.easConfig?.projectId;
-
-    if (!projectId) {
-      console.warn("[PushToken] No projectId found in app.json — token skipped.");
-      return null;
-    }
-
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+    if (!projectId) return null;
     const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
     return data;
   } catch (err) {
-    console.warn("[PushToken] Failed to get push token:", err.message);
     return null;
   }
 };
 
-// ── Screen ─────────────────────────────────────────────────────────────────────
 export default function BookServiceScreen() {
   const [customerName, setCustomerName]       = useState("");
   const [bikeModel, setBikeModel]             = useState("");
@@ -71,10 +49,7 @@ export default function BookServiceScreen() {
   const [loading, setLoading]                 = useState(true);
   const [submitting, setSubmitting]           = useState(false);
 
-  useEffect(() => {
-    fetchServices();
-    prefillProfile();
-  }, []);
+  useEffect(() => { fetchServices(); prefillProfile(); }, []);
 
   const prefillProfile = async () => {
     try {
@@ -85,9 +60,7 @@ export default function BookServiceScreen() {
         if (p.vehicleNumber) setVehicleNumber(p.vehicleNumber);
         if (p.bikeModel)     setBikeModel(p.bikeModel);
       }
-    } catch {
-      // Non-critical — silently ignore
-    }
+    } catch {}
   };
 
   const fetchServices = async () => {
@@ -105,22 +78,10 @@ export default function BookServiceScreen() {
   const selectedServiceObj = services.find((s) => s._id === selectedService);
 
   const handleBooking = async () => {
-    if (customerName.trim().length < 3) {
-      Toast.show({ type: "error", text1: "Validation", text2: "Name must be at least 3 characters." });
-      return;
-    }
-    if (bikeModel.trim().length < 2) {
-      Toast.show({ type: "error", text1: "Validation", text2: "Bike model is too short." });
-      return;
-    }
-    if (vehicleNumber.trim().length < 4) {
-      Toast.show({ type: "error", text1: "Validation", text2: "Enter a valid vehicle number (e.g. MH12AB1234)." });
-      return;
-    }
-    if (!selectedService) {
-      Toast.show({ type: "error", text1: "Validation", text2: "Please select a service." });
-      return;
-    }
+    if (customerName.trim().length < 3)  { Toast.show({ type: "error", text1: "Validation", text2: "Name must be at least 3 characters." }); return; }
+    if (bikeModel.trim().length < 2)     { Toast.show({ type: "error", text1: "Validation", text2: "Bike model is too short." }); return; }
+    if (vehicleNumber.trim().length < 4) { Toast.show({ type: "error", text1: "Validation", text2: "Enter a valid vehicle number." }); return; }
+    if (!selectedService)                { Toast.show({ type: "error", text1: "Validation", text2: "Please select a service." }); return; }
 
     setSubmitting(true);
     try {
@@ -128,75 +89,57 @@ export default function BookServiceScreen() {
       const cleanVehicle          = vehicleNumber.toUpperCase().trim();
 
       const res = await createBooking({
-        customerName:        customerName.trim(),
-        bikeModel:           bikeModel.trim(),
-        vehicleNumber:       cleanVehicle,
-        serviceId:           selectedService,
+        customerName: customerName.trim(),
+        bikeModel: bikeModel.trim(),
+        vehicleNumber: cleanVehicle,
+        serviceId: selectedService,
         customerExpoPushToken,
       });
 
-      const { status, paymentOrder, booking } = res.data;
+      const { status } = res.data;
 
       await AsyncStorage.setItem("customerProfile", JSON.stringify({
-        name:          customerName.trim(),
-        vehicleNumber: cleanVehicle,
-        bikeModel:     bikeModel.trim(),
+        name: customerName.trim(), vehicleNumber: cleanVehicle, bikeModel: bikeModel.trim(),
       }));
 
       if (status === BOOKING_STATUS.WAITLISTED) {
+        Toast.show({ type: "info", text1: "Added to Waitlist ⏳", text2: "A mechanic will be assigned soon." });
+      } else {
+        // ✅ NO payment collected here — payment happens after mechanic marks COMPLETED
         Toast.show({
-          type:  "info",
-          text1: "Added to Waitlist ⏳",
-          text2: "A mechanic will be assigned as soon as one is available.",
+          type: "success",
+          text1: "Booking Confirmed! 🎉",
+          text2: `${selectedServiceObj?.name} booked. Pay after service is completed.`,
         });
-      }else {
-      Toast.show({
-            type:  "success",
-            text1: "Booking Confirmed! 🎉",
-            text2: "Your mechanic has been assigned. Payment due after service.",
-          });
-        }
+      }
 
-        resetForm();
-       
+      resetForm();
     } catch (err) {
-      Toast.show({
-        type:  "error",
-        text1: "Booking Failed",
-        text2: err?.response?.data?.message || "Something went wrong. Please try again.",
-      });
+      Toast.show({ type: "error", text1: "Booking Failed", text2: err?.response?.data?.message || "Something went wrong." });
     } finally {
       setSubmitting(false);
     }
   };
 
   const resetForm = () => {
-    setBikeModel("");
-    setVehicleNumber("");
+    setBikeModel(""); setVehicleNumber("");
     if (services.length > 0) setSelectedService(services[0]._id);
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color={COLORS.accent} />
-        <Text style={styles.loaderText}>Loading Services…</Text>
-      </View>
-    );
-  }
+  if (loading) return (
+    <View style={styles.loader}>
+      <ActivityIndicator size="large" color={COLORS.accent} />
+      <Text style={styles.loaderText}>Loading Services…</Text>
+    </View>
+  );
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: COLORS.bg }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: COLORS.bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-
         <View style={styles.pageHeader}>
           <Text style={styles.pageTitle}>Book a Service</Text>
           <Text style={styles.pageSubtitle}>Fill in the details below to get started</Text>
         </View>
-
         <View style={styles.card}>
           {[
             { label: "Customer Name",  value: customerName,  setter: setCustomerName,  placeholder: "e.g. Rahul Sharma", icon: "person-outline",  caps: "words",      keyboard: "default" },
@@ -206,22 +149,11 @@ export default function BookServiceScreen() {
             <View key={label} style={styles.fieldWrap}>
               <Text style={styles.label}>{label}</Text>
               <View style={styles.inputRow}>
-                <View style={styles.inputIconWrap}>
-                  <Ionicons name={icon} size={18} color={COLORS.textMuted} />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder={placeholder}
-                  placeholderTextColor={COLORS.textDisabled}
-                  value={value}
-                  onChangeText={setter}
-                  autoCapitalize={caps}
-                  keyboardType={keyboard}
-                />
+                <View style={styles.inputIconWrap}><Ionicons name={icon} size={18} color={COLORS.textMuted} /></View>
+                <TextInput style={styles.input} placeholder={placeholder} placeholderTextColor={COLORS.textDisabled} value={value} onChangeText={setter} autoCapitalize={caps} keyboardType={keyboard} />
               </View>
             </View>
           ))}
-
           <View style={styles.fieldWrap}>
             <Text style={styles.label}>Select Service</Text>
             {services.length === 0 ? (
@@ -232,25 +164,14 @@ export default function BookServiceScreen() {
             ) : (
               <View style={styles.pickerWrapper}>
                 <Ionicons name="construct-outline" size={18} color={COLORS.textMuted} style={styles.pickerIcon} />
-                <Picker
-                  selectedValue={selectedService}
-                  onValueChange={setSelectedService}
-                  style={styles.picker}
-                  dropdownIconColor={COLORS.textMuted}
-                >
+                <Picker selectedValue={selectedService} onValueChange={setSelectedService} style={styles.picker} dropdownIconColor={COLORS.textMuted}>
                   {services.map((s) => (
-                    <Picker.Item
-                      key={s._id}
-                      label={`${s.name}  —  ₹${s.price}`}
-                      value={s._id}
-                      color={Platform.OS === "android" ? "#000000" : COLORS.textPrimary}
-                    />
+                    <Picker.Item key={s._id} label={`${s.name}  —  ₹${s.price}`} value={s._id} color={Platform.OS === "android" ? "#000000" : COLORS.textPrimary} />
                   ))}
                 </Picker>
               </View>
             )}
           </View>
-
           {selectedServiceObj && (
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
@@ -263,35 +184,30 @@ export default function BookServiceScreen() {
               </View>
               <View style={styles.summaryRight}>
                 <Text style={styles.summaryPrice}>₹{selectedServiceObj.price}</Text>
-                <Text style={styles.summaryPriceLabel}>incl. all charges</Text>
+                <Text style={styles.summaryPriceLabel}>pay after completion</Text>
               </View>
             </View>
           )}
         </View>
 
-        <TouchableOpacity
-          style={[styles.submitBtn, (submitting || services.length === 0) && styles.submitDisabled]}
-          onPress={handleBooking}
-          disabled={submitting || services.length === 0}
-          activeOpacity={0.88}
-        >
-          {submitting ? (
-            <ActivityIndicator color={COLORS.textInverse} />
-          ) : (
-            <>
-              <Ionicons name="checkmark-circle-outline" size={20} color={COLORS.textInverse} />
-              <Text style={styles.submitText}>Confirm Booking</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.noteRow}>
-          <Ionicons name="shield-checkmark-outline" size={14} color={COLORS.textMuted} />
-          <Text style={styles.note}>
-            Mechanic auto-assigned · Payment collected after service completion
-          </Text>
+        {/* Payment info banner */}
+        <View style={styles.paymentBanner}>
+          <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.success} />
+          <View style={styles.paymentBannerText}>
+            <Text style={styles.paymentBannerTitle}>Pay after service</Text>
+            <Text style={styles.paymentBannerSub}>Payment is collected only after the mechanic marks the job as complete</Text>
+          </View>
         </View>
 
+        <TouchableOpacity
+          style={[styles.submitBtn, (submitting || services.length === 0) && styles.submitDisabled]}
+          onPress={handleBooking} disabled={submitting || services.length === 0} activeOpacity={0.88}
+        >
+          {submitting
+            ? <ActivityIndicator color={COLORS.textInverse} />
+            : <><Ionicons name="checkmark-circle-outline" size={20} color={COLORS.textInverse} /><Text style={styles.submitText}>Confirm Booking</Text></>
+          }
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -300,34 +216,36 @@ export default function BookServiceScreen() {
 const styles = StyleSheet.create({
   scroll:        { flex: 1, backgroundColor: COLORS.bg },
   scrollContent: { paddingBottom: SPACING.xxl },
-  loader: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.bg, gap: SPACING.sm },
-  loaderText: { fontSize: FONT_SIZE.sm, ...FONTS.medium, color: COLORS.textMuted },
-  pageHeader: { backgroundColor: COLORS.bgCard, paddingHorizontal: SPACING.screen, paddingTop: 52, paddingBottom: SPACING.xl + SPACING.lg, borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  pageTitle: { fontSize: FONT_SIZE.xxxl, ...FONTS.extraBold, color: COLORS.textPrimary },
-  pageSubtitle: { fontSize: FONT_SIZE.sm, ...FONTS.regular, color: COLORS.textMuted, marginTop: 4 },
-  card: { backgroundColor: COLORS.bgCard, marginHorizontal: SPACING.screen, marginTop: SPACING.md, borderRadius: RADIUS.xl, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border, ...SHADOW.md },
-  fieldWrap:  { marginBottom: SPACING.sm },
-  label: { fontSize: FONT_SIZE.xs, ...FONTS.bold, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: SPACING.xs },
-  inputRow: { flexDirection: "row", alignItems: "center", backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, overflow: "hidden" },
+  loader:        { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.bg, gap: SPACING.sm },
+  loaderText:    { fontSize: FONT_SIZE.sm, ...FONTS.medium, color: COLORS.textMuted },
+  pageHeader:    { backgroundColor: COLORS.bgCard, paddingHorizontal: SPACING.screen, paddingTop: 52, paddingBottom: SPACING.xl + SPACING.lg, borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  pageTitle:     { fontSize: FONT_SIZE.xxxl, ...FONTS.extraBold, color: COLORS.textPrimary },
+  pageSubtitle:  { fontSize: FONT_SIZE.sm, ...FONTS.regular, color: COLORS.textMuted, marginTop: 4 },
+  card:          { backgroundColor: COLORS.bgCard, marginHorizontal: SPACING.screen, marginTop: SPACING.md, borderRadius: RADIUS.xl, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border, ...SHADOW.md },
+  fieldWrap:     { marginBottom: SPACING.sm },
+  label:         { fontSize: FONT_SIZE.xs, ...FONTS.bold, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: SPACING.xs },
+  inputRow:      { flexDirection: "row", alignItems: "center", backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, overflow: "hidden" },
   inputIconWrap: { width: 44, height: 48, alignItems: "center", justifyContent: "center", borderRightWidth: 1, borderRightColor: COLORS.border },
-  input: { flex: 1, height: 48, paddingHorizontal: SPACING.md, fontSize: FONT_SIZE.base, ...FONTS.medium, color: COLORS.textPrimary },
+  input:         { flex: 1, height: 48, paddingHorizontal: SPACING.md, fontSize: FONT_SIZE.base, ...FONTS.medium, color: COLORS.textPrimary },
   pickerWrapper: { flexDirection: "row", alignItems: "center", backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, overflow: "hidden" },
-  pickerIcon: { paddingHorizontal: SPACING.sm, borderRightWidth: 1, borderRightColor: COLORS.border, paddingVertical: 14 },
-  picker: { flex: 1, height: 50, color: COLORS.textPrimary },
-  emptyService: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, padding: SPACING.md, backgroundColor: COLORS.warningBg, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.warningBorder },
+  pickerIcon:    { paddingHorizontal: SPACING.sm, borderRightWidth: 1, borderRightColor: COLORS.border, paddingVertical: 14 },
+  picker:        { flex: 1, height: 50, color: COLORS.textPrimary },
+  emptyService:  { flexDirection: "row", alignItems: "center", gap: SPACING.sm, padding: SPACING.md, backgroundColor: COLORS.warningBg, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.warningBorder },
   emptyServiceText: { fontSize: FONT_SIZE.sm, ...FONTS.medium, color: COLORS.warning },
-  summary: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: SPACING.sm, padding: SPACING.md, backgroundColor: COLORS.accentBg, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.borderAccent },
-  summaryLeft:  { flex: 1 },
-  summaryTag: { fontSize: FONT_SIZE.xs, ...FONTS.bold, color: COLORS.accent, textTransform: "uppercase", letterSpacing: 0.8 },
-  summaryName: { fontSize: FONT_SIZE.base, ...FONTS.bold, color: COLORS.textPrimary, marginTop: 2 },
-  summaryMeta: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 3 },
+  summary:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: SPACING.sm, padding: SPACING.md, backgroundColor: COLORS.accentBg, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.borderAccent },
+  summaryLeft:   { flex: 1 },
+  summaryTag:    { fontSize: FONT_SIZE.xs, ...FONTS.bold, color: COLORS.accent, textTransform: "uppercase", letterSpacing: 0.8 },
+  summaryName:   { fontSize: FONT_SIZE.base, ...FONTS.bold, color: COLORS.textPrimary, marginTop: 2 },
+  summaryMeta:   { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 3 },
   summaryDuration: { fontSize: FONT_SIZE.xs, ...FONTS.medium, color: COLORS.textMuted },
-  summaryRight: { alignItems: "flex-end" },
-  summaryPrice: { fontSize: FONT_SIZE.xxl, ...FONTS.extraBold, color: COLORS.accent },
+  summaryRight:  { alignItems: "flex-end" },
+  summaryPrice:  { fontSize: FONT_SIZE.xxl, ...FONTS.extraBold, color: COLORS.accent },
   summaryPriceLabel: { fontSize: FONT_SIZE.xs, ...FONTS.regular, color: COLORS.textMuted, marginTop: 2 },
-  submitBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: SPACING.sm, marginHorizontal: SPACING.screen, marginTop: SPACING.md, backgroundColor: COLORS.accent, paddingVertical: SPACING.md + 2, borderRadius: RADIUS.lg, ...SHADOW.accent },
+  paymentBanner: { flexDirection: "row", alignItems: "flex-start", gap: SPACING.sm, marginHorizontal: SPACING.screen, marginTop: SPACING.md, padding: SPACING.md, backgroundColor: COLORS.successBg, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.successBorder },
+  paymentBannerText:  { flex: 1 },
+  paymentBannerTitle: { fontSize: FONT_SIZE.sm, ...FONTS.bold, color: COLORS.success },
+  paymentBannerSub:   { fontSize: FONT_SIZE.xs, ...FONTS.regular, color: COLORS.success, opacity: 0.8, marginTop: 2, lineHeight: 16 },
+  submitBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: SPACING.sm, marginHorizontal: SPACING.screen, marginTop: SPACING.md, backgroundColor: COLORS.accent, paddingVertical: SPACING.md + 2, borderRadius: RADIUS.lg, ...SHADOW.accent },
   submitDisabled: { opacity: 0.45 },
-  submitText: { fontSize: FONT_SIZE.md, ...FONTS.bold, color: COLORS.textInverse },
-  noteRow: { flexDirection: "row", alignItems: "center", gap: SPACING.xs, justifyContent: "center", marginTop: SPACING.md, paddingHorizontal: SPACING.xl },
-  note: { fontSize: FONT_SIZE.xs, ...FONTS.regular, color: COLORS.textMuted, textAlign: "center", lineHeight: 16 },
+  submitText:    { fontSize: FONT_SIZE.md, ...FONTS.bold, color: COLORS.textInverse },
 });
