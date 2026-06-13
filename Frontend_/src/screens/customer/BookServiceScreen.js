@@ -10,7 +10,7 @@ import * as Device from "expo-device";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import { getServices } from "../../services/serviceService";
-import { createBooking } from "../../services/bookingService";   // removed verifyPayment import
+import { createBooking } from "../../services/bookingService";
 import { BOOKING_STATUS } from "../../utils/constants";
 import { COLORS, FONTS, FONT_SIZE, RADIUS, SHADOW, SPACING } from "../../utils/theme";
 
@@ -35,9 +35,7 @@ const getCustomerPushToken = async () => {
     if (!projectId) return null;
     const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
     return data;
-  } catch (err) {
-    return null;
-  }
+  } catch { return null; }
 };
 
 export default function BookServiceScreen() {
@@ -53,12 +51,16 @@ export default function BookServiceScreen() {
 
   const prefillProfile = async () => {
     try {
+      // Try customerName key first (most reliable)
+      const savedName = await AsyncStorage.getItem("customerName");
+      if (savedName) setCustomerName(savedName);
+
       const raw = await AsyncStorage.getItem("customerProfile");
       if (raw) {
         const p = JSON.parse(raw);
-        if (p.name)          setCustomerName(p.name);
-        if (p.vehicleNumber) setVehicleNumber(p.vehicleNumber);
-        if (p.bikeModel)     setBikeModel(p.bikeModel);
+        if (!savedName && p.name) setCustomerName(p.name);
+        if (p.vehicleNumber)      setVehicleNumber(p.vehicleNumber);
+        if (p.bikeModel)          setBikeModel(p.bikeModel);
       }
     } catch {}
   };
@@ -87,9 +89,10 @@ export default function BookServiceScreen() {
     try {
       const customerExpoPushToken = await getCustomerPushToken();
       const cleanVehicle          = vehicleNumber.toUpperCase().trim();
+      const trimmedName           = customerName.trim();
 
       const res = await createBooking({
-        customerName: customerName.trim(),
+        customerName: trimmedName,
         bikeModel: bikeModel.trim(),
         vehicleNumber: cleanVehicle,
         serviceId: selectedService,
@@ -98,14 +101,17 @@ export default function BookServiceScreen() {
 
       const { status } = res.data;
 
+      // Save profile — both keys so getBookings always finds the name
+      await AsyncStorage.setItem("customerName", trimmedName);
       await AsyncStorage.setItem("customerProfile", JSON.stringify({
-        name: customerName.trim(), vehicleNumber: cleanVehicle, bikeModel: bikeModel.trim(),
+        name: trimmedName,
+        vehicleNumber: cleanVehicle,
+        bikeModel: bikeModel.trim(),
       }));
 
       if (status === BOOKING_STATUS.WAITLISTED) {
         Toast.show({ type: "info", text1: "Added to Waitlist ⏳", text2: "A mechanic will be assigned soon." });
       } else {
-        // ✅ NO payment collected here — payment happens after mechanic marks COMPLETED
         Toast.show({
           type: "success",
           text1: "Booking Confirmed! 🎉",
@@ -190,12 +196,11 @@ export default function BookServiceScreen() {
           )}
         </View>
 
-        {/* Payment info banner */}
         <View style={styles.paymentBanner}>
           <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.success} />
           <View style={styles.paymentBannerText}>
             <Text style={styles.paymentBannerTitle}>Pay after service</Text>
-            <Text style={styles.paymentBannerSub}>Payment is collected only after the mechanic marks the job as complete</Text>
+            <Text style={styles.paymentBannerSub}>Payment collected only after mechanic marks job complete</Text>
           </View>
         </View>
 

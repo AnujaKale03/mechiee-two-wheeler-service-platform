@@ -43,10 +43,13 @@ const createBooking = async (req, res) => {
 // Supports ?customerName=Rahul to show only that customer's bookings
 const getBookings = async (req, res) => {
   try {
-    const filter = {};
-    if (req.query.customerName) {
-      filter.customerName = { $regex: new RegExp(`^${req.query.customerName.trim()}$`, "i") };
+    // No customerName = return empty (prevents new users seeing all bookings)
+    if (!req.query.customerName || !req.query.customerName.trim()) {
+      return res.status(200).json([]);
     }
+    const filter = {
+      customerName: { $regex: new RegExp(`^${req.query.customerName.trim()}$`, "i") }
+    };
     const bookings = await Booking.find(filter)
       .populate("serviceId")
       .populate("mechanicId", "name avgRating")

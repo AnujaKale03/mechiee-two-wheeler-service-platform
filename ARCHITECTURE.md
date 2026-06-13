@@ -1,527 +1,476 @@
-# Application Architecture
+# Mechiee — Architecture
 
-# Overview
-
-Mechiee Two-Wheeler Service Platform is a full-stack mobile application designed to manage doorstep two-wheeler service bookings.
-
-The system consists of:
-
-* React Native (Expo) Mobile Application
-* Node.js + Express REST API
-* MongoDB Database
-
-The application supports separate customer and mechanic workflows, automatic mechanic assignment, booking status tracking, and waitlist management.
+This document describes the system architecture, data flow, navigation structure, and design decisions for the Mechiee platform.
 
 ---
 
-# High-Level Architecture
+## Table of Contents
 
-```text
-+----------------------+
-|  React Native App    |
-| (Customer/Mechanic)  |
-+----------+-----------+
-           |
-           | Axios HTTP Requests
-           v
-+----------------------+
-|  Express.js Backend  |
-|  REST API Layer      |
-+----------+-----------+
-           |
-           | Mongoose ODM
-           v
-+----------------------+
-|      MongoDB         |
-+----------------------+
+- [System Overview](#system-overview)
+- [Navigation Architecture](#navigation-architecture)
+- [Backend Architecture](#backend-architecture)
+- [Data Models](#data-models)
+- [Key Services](#key-services)
+- [Booking State Machine](#booking-state-machine)
+- [Authentication Flow](#authentication-flow)
+- [Mechanic Assignment Logic](#mechanic-assignment-logic)
+- [Notification Architecture](#notification-architecture)
+- [Payment Architecture](#payment-architecture)
+- [Design System](#design-system)
+
+---
+
+## System Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   React Native (Expo)                    │
+│                                                         │
+│  ┌──────────┐   ┌──────────────┐   ┌─────────────────┐ │
+│  │ Customer │   │   Mechanic   │   │      Admin      │ │
+│  │   App    │   │     App      │   │      App        │ │
+│  └────┬─────┘   └──────┬───────┘   └────────┬────────┘ │
+│       │                │                    │           │
+│       └────────────────┼────────────────────┘           │
+│                        │  Axios (REST)                   │
+└────────────────────────┼────────────────────────────────┘
+                         │
+            ┌────────────▼────────────┐
+            │   Express.js API        │
+            │   Node.js + MongoDB     │
+            │                         │
+            │  ┌─────────────────┐   │
+            │  │   Controllers   │   │
+            │  │  booking        │   │
+            │  │  mechanic       │   │
+            │  │  admin          │   │
+            │  │  auth           │   │
+            │  │  service        │   │
+            │  └────────┬────────┘   │
+            │           │            │
+            │  ┌────────▼────────┐   │
+            │  │    Services     │   │
+            │  │  assignment     │   │
+            │  │  notification   │   │
+            │  │  payment        │   │
+            │  └────────┬────────┘   │
+            │           │            │
+            │  ┌────────▼────────┐   │
+            │  │  MongoDB Atlas  │   │
+            │  │  Booking        │   │
+            │  │  Mechanic       │   │
+            │  │  Service        │   │
+            │  │  User           │   │
+            │  │  Notification   │   │
+            │  └─────────────────┘   │
+            └─────────────────────────┘
+                         │
+          ┌──────────────┼──────────────┐
+          │              │              │
+    ┌─────▼────┐  ┌──────▼─────┐  ┌───▼──────┐
+    │  Twilio  │  │  Razorpay  │  │  Expo    │
+    │  OTP     │  │  Payments  │  │  Push    │
+    └──────────┘  └────────────┘  └──────────┘
 ```
 
 ---
 
-# Application Flow
+## Navigation Architecture
 
-## Customer Journey
+The app uses a **Root Stack → Role-specific Tab Navigator** pattern. After login, users are pushed into their role's tab navigator which lives as a single stack screen.
 
-```text
-Role Selection
-       ↓
-Customer Portal
-       ↓
-Home Screen
-       ↓
-Book Service
-       ↓
-Booking Created
-       ↓
-Mechanic Assigned / Waitlisted
-       ↓
-Booking History
+```
+AppNavigator (NativeStack)
+│
+├── Welcome
+├── RoleSelection
+│
+├── Auth Flow
+│   ├── PhoneEntry
+│   ├── OtpVerify
+│   └── AuthSuccess
+│
+├── Login Screens
+│   ├── CustomerLoginScreen
+│   ├── MechanicLoginScreen
+│   └── AdminLoginScreen
+│
+├── Customer  ──► CustomerNavigator (BottomTabs)
+│                  ├── Home
+│                  ├── Book Service
+│                  └── Bookings
+│
+├── MechanicApp  ──► MechanicNavigator (BottomTabs)
+│                      ├── Profile
+│                      └── My Jobs
+│
+└── AdminApp  ──► AdminNavigator (BottomTabs)
+                    ├── Dashboard  ──► jumpTo("Customers")
+                    │               ──► jumpTo("Mechanics")
+                    │               ──► jumpTo("Waitlisted")
+                    ├── Customers
+                    ├── Mechanics
+                    └── Waitlisted
+```
+
+> **Important:** Navigation between sibling tabs uses `navigation.jumpTo()`, not `navigation.navigate()`. The Dashboard Quick Actions use `jumpTo` to switch to the Customers, Mechanics, and Waitlisted tabs directly.
+
+---
+
+## Backend Architecture
+
+### Layer responsibilities
+
+```
+routes/          → HTTP method + path definitions, middleware attachment
+controllers/     → Request parsing, business logic orchestration, response shaping
+services/        → Stateless utilities: payment, assignment, notifications
+models/          → Mongoose schemas + validation
+```
+
+### Route map
+
+```
+POST   /auth/send-otp
+POST   /auth/verify-otp
+GET    /auth/me                          (JWT required)
+
+GET    /services
+
+POST   /bookings                         → createBooking
+GET    /bookings                         → getBookings  (?customerName=)
+PATCH  /bookings/:id/status              → updateBookingStatus
+PATCH  /bookings/:id/cancel              → cancelBooking
+PATCH  /bookings/:id/eta                 → updateETA
+POST   /bookings/:id/rate                → rateBooking
+POST   /bookings/:id/payment/verify      → verifyBookingPayment
+
+POST   /mechanics/login
+GET    /mechanics
+GET    /mechanics/:id/profile            (mechanic JWT required)
+GET    /mechanics/:id/bookings           (mechanic JWT required)
+PATCH  /mechanics/:id/push-token         (mechanic JWT required)
+
+POST   /admin/login
+GET    /admin/analytics                  (admin JWT required)
+GET    /admin/customers                  (admin JWT required)
+GET    /admin/waitlisted                 (admin JWT required)
 ```
 
 ---
 
-## Mechanic Journey
-
-```text
-Role Selection
-       ↓
-Mechanic Portal
-       ↓
-Dashboard
-       ↓
-Assigned Bookings
-       ↓
-Update Status
-       ↓
-Completed Job
-```
-
----
-
-# Frontend Architecture
-
-## Navigation Structure
-
-### Root Stack Navigator
-
-```text
-Role Selection
-      ├── Customer Navigator
-      └── Mechanic Navigator
-```
-
----
-
-### Customer Navigator
-
-Bottom Tab Navigation
-
-```text
-Home
-Book Service
-Bookings
-```
-
----
-
-### Mechanic Navigator
-
-Bottom Tab Navigation
-
-```text
-Dashboard
-My Jobs
-```
-
----
-
-# Backend Architecture
-
-The backend follows a layered architecture:
-
-```text
-Routes
-   ↓
-Controllers
-   ↓
-Services
-   ↓
-Models
-   ↓
-MongoDB
-```
-
----
-
-## Responsibilities
-
-### Routes
-
-Defines API endpoints.
-
-Examples:
-
-```text
-/api/services
-/api/mechanics
-/api/bookings
-```
-
----
-
-### Controllers
-
-Handle request validation and responses.
-
-Examples:
-
-* serviceController.js
-* mechanicController.js
-* bookingController.js
-
----
-
-### Services
-
-Contains business logic.
-
-Example:
-
-```text
-mechanicAssignmentService.js
-```
-
-Responsible for:
-
-* Workload balancing
-* Capacity validation
-* Waitlist management
-
----
-
-### Models
-
-MongoDB schemas using Mongoose.
-
-Examples:
-
-* Service
-* Mechanic
-* Booking
-
----
-
-# Database Design
-
-## Collections
-
-### Service
-
-Stores available service packages.
-
-Fields:
-
-* _id
-* name
-* price
-
-Example:
-
-```json
-{
-  "name": "Standard Service",
-  "price": 499
-}
-```
-
----
-
-### Mechanic
-
-Stores mechanic information.
-
-Fields:
-
-* _id
-* name
-
-Example:
-
-```json
-{
-  "name": "Mechanic A"
-}
-```
-
----
+## Data Models
 
 ### Booking
 
-Stores customer bookings.
+```
+customerName          String   required
+bikeModel             String   required
+vehicleNumber         String   required
+serviceId             ObjectId → Service
+mechanicId            ObjectId → Mechanic  (null if WAITLISTED)
+status                Enum: ASSIGNED | WAITLISTED | IN_PROGRESS | COMPLETED | CANCELLED
+paymentStatus         Enum: PENDING | AWAITING | PAID | FAILED
+paymentOrderId        String   (Razorpay order ID)
+paymentId             String   (Razorpay payment ID after verification)
+rating                Number   1–5
+ratingComment         String
+eta                   String
+customerExpoPushToken String
+completedAt           Date
+cancelledAt           Date
+timestamps            createdAt, updatedAt
+```
 
-Fields:
+### Mechanic
 
-* _id
-* customerName
-* bikeModel
-* serviceId
-* mechanicId
-* status
-* createdAt
-* updatedAt
+```
+name            String   required
+pin             String   required  (4-digit, stored plain — hash in production)
+phone           String
+expoPushToken   String
+avgRating       Number   default 0
+totalRatings    Number   default 0
+isActive        Boolean  default true
+timestamps      createdAt, updatedAt
+```
 
-Example:
+### User
 
-```json
-{
-  "customerName": "Rahul",
-  "bikeModel": "Activa 6G",
-  "serviceId": "serviceId",
-  "mechanicId": "mechanicId",
-  "status": "ASSIGNED"
-}
+```
+phone       String   unique, Indian format /^[6-9]\d{9}$/
+role        Enum: customer | mechanic | administrator
+name        String
+email       String
+address     String
+avatar      String
+mechanicId  ObjectId → Mechanic  (for mechanic-role users)
+lastLogin   Date
+isActive    Boolean
+timestamps  createdAt, updatedAt
+```
+
+### Service
+
+```
+name          String   required
+price         Number   required
+description   String
+durationMins  Number   default 60
+```
+
+### Notification
+
+```
+recipient   ObjectId (polymorphic via refPath)
+role        Enum: customer | mechanic | administrator
+type        String
+title       String
+body        String
+booking     ObjectId → Booking
+read        Boolean
+readAt      Date
+channels    { push: { sent, sentAt }, sms: { sent, sentAt } }
+timestamps  createdAt, updatedAt
 ```
 
 ---
 
-# Entity Relationships
+## Key Services
 
-```text
-Service (1)
-     |
-     |----< Booking >----|
-                          |
-                          |
-                    Mechanic (1)
-```
+### mechanicAssignmentService
 
-Relationship Summary:
+`assignMechanic()` — called on every booking creation:
+1. Finds all active mechanics.
+2. For each, counts today's ASSIGNED + IN_PROGRESS bookings.
+3. Returns the first mechanic under the daily cap of 3.
+4. If none available, returns `{ mechanicId: null, status: "WAITLISTED" }`.
 
-* One Service can have many Bookings.
-* One Mechanic can have many Bookings.
-* Each Booking belongs to one Service.
-* Each Booking may be assigned to one Mechanic.
-* Waitlisted bookings have no mechanic assigned.
+`reassignWaitlisted(mechanicId)` — called on booking COMPLETED or CANCELLED:
+1. Finds the oldest WAITLISTED booking.
+2. Assigns the now-free mechanic to it.
+3. Sends a push notification to the customer.
 
----
+### paymentService
 
-# API Design
+- Wraps Razorpay `orders.create()`.
+- Detects mock mode when `RAZORPAY_KEY_ID` is absent or placeholder.
+- In mock mode, returns a fake order with `isMock: true` — the booking controller auto-marks payment as PAID.
+- `verifyPayment(orderId, paymentId, signature)` — HMAC-SHA256 signature check; returns `true` in mock mode.
 
-## Services
+### notificationService
 
-### Get Services
-
-```http
-GET /api/services
-```
-
-Returns all available services.
+- Wraps Expo Server SDK `sendPushNotificationsAsync`.
+- Called from `bookingController` at status transitions: new booking (→ mechanic), IN_PROGRESS (→ customer), COMPLETED (→ customer), ETA update (→ customer).
 
 ---
 
-## Mechanics
+## Booking State Machine
 
-### Get Mechanics
-
-```http
-GET /api/mechanics
 ```
-
-Returns mechanics with:
-
-* Daily booking count
-* Availability status
-* Capacity information
-
-Example:
-
-```json
-[
-  {
-    "_id": "id",
-    "name": "Mechanic A",
-    "todayBookingCount": 2,
-    "maxCapacity": 3,
-    "isAvailable": true
-  }
-]
-```
-
----
-
-## Bookings
-
-### Get Bookings
-
-```http
-GET /api/bookings
-```
-
-Returns all bookings.
-
----
-
-### Create Booking
-
-```http
-POST /api/bookings
-```
-
-Request:
-
-```json
-{
-  "customerName": "Rahul",
-  "bikeModel": "Activa 6G",
-  "serviceId": "service_id"
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "status": "ASSIGNED",
-  "message": "Booking Created Successfully"
-}
+                 ┌─────────────────────────────────┐
+                 │           createBooking          │
+                 └────────────┬────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+         mechanic                        no mechanic
+         available                       available
+              │                               │
+              ▼                               ▼
+         ASSIGNED                        WAITLISTED
+              │                               │
+              │                    mechanic becomes free
+              │                               │
+              │                               ▼
+              │                          ASSIGNED
+              │                               │
+              ▼                               │
+         IN_PROGRESS ◄─────────────────────────┘
+              │
+              ├──────────────► CANCELLED  (only from ASSIGNED or WAITLISTED)
+              │
+              ▼
+         COMPLETED
+              │
+              ▼
+     Razorpay order created
+              │
+        ┌─────┴──────┐
+      mock          real
+        │              │
+        ▼              ▼
+      PAID         AWAITING
+                       │
+               customer pays
+                       │
+                       ▼
+                     PAID  (or FAILED on bad signature)
 ```
 
 ---
 
-### Update Booking Status
+## Authentication Flow
 
-```http
-PATCH /api/bookings/:id/status
+### Customer / New User
+
+```
+PhoneEntryScreen
+  → POST /auth/send-otp  (Twilio Verify SMS)
+  → OtpVerifyScreen
+  → POST /auth/verify-otp
+      finds or creates User doc
+      returns JWT (30d expiry)
+  → token saved to AsyncStorage
+  → navigation.replace("Customer")
 ```
 
-Updates booking status.
+### Mechanic
 
-Supported statuses:
-
-* ASSIGNED
-* IN_PROGRESS
-* COMPLETED
-
-Example:
-
-```json
-{
-  "status": "IN_PROGRESS"
-}
+```
+MechanicLoginScreen
+  → POST /mechanics/login  (name + PIN)
+  → JWT returned (7d expiry)
+  → token saved to AsyncStorage
+  → navigation.replace("MechanicApp")
 ```
 
----
+### Admin
 
-# Mechanic Assignment Logic
-
-## Business Rules
-
-* Maximum 3 active bookings per mechanic per day.
-* Capacity is calculated per day, not globally.
-* Only active bookings count toward capacity.
-* Active statuses:
-
-  * ASSIGNED
-  * IN_PROGRESS
-
-Ignored statuses:
-
-* COMPLETED
-
-* WAITLISTED
-
-* Booking is assigned to the least busy mechanic.
-
-* If all mechanics reach capacity, booking is waitlisted.
-
----
-
-## Assignment Algorithm
-
-1. Fetch all mechanics.
-2. Calculate today's active booking count.
-3. Sort mechanics by workload.
-4. Select mechanic with lowest count.
-5. If booking count < 3:
-
-   * Assign mechanic.
-   * Mark booking as ASSIGNED.
-6. Otherwise:
-
-   * Create booking without mechanic.
-   * Mark booking as WAITLISTED.
-
----
-
-# Booking Status Lifecycle
-
-```text
-ASSIGNED
-    ↓
-IN_PROGRESS
-    ↓
-COMPLETED
+```
+AdminLoginScreen
+  → POST /admin/login  (static password)
+  → JWT returned (7d expiry)
+  → token saved to AsyncStorage
+  → navigation.replace("AdminApp")
 ```
 
-Mechanics can update booking status from the mobile application.
+> JWT payload differences: customer tokens carry `{ id, phone, role }`, mechanic tokens carry `{ id, name, role: "mechanic" }`, admin tokens carry `{ role: "administrator", name: "Admin" }`.
 
 ---
 
-# Middleware
+## Mechanic Assignment Logic
 
-## Logger Middleware
+```
+createBooking request arrives
+        │
+        ▼
+Mechanic.find({ isActive: true })
+        │
+        ▼
+For each mechanic:
+  count Bookings where
+    mechanicId = mechanic._id
+    status IN [ASSIGNED, IN_PROGRESS]
+    createdAt >= today 00:00
+        │
+        ▼
+  dailyCount < 3?
+    YES → assign this mechanic → status = ASSIGNED
+    NO  → try next mechanic
+        │
+  all full?
+    YES → status = WAITLISTED, mechanicId = null
+```
 
-Logs incoming requests.
-
-Example:
-
-```text
-GET /api/services
-POST /api/bookings
-PATCH /api/bookings/:id/status
+When a job is COMPLETED or CANCELLED:
+```
+reassignWaitlisted(freedMechanicId)
+  → find oldest WAITLISTED booking
+  → set mechanicId = freedMechanicId, status = ASSIGNED
+  → push notification to customer
 ```
 
 ---
 
-## Error Middleware
+## Notification Architecture
 
-Provides centralized error handling and API error responses.
+```
+Trigger (bookingController)
+        │
+        ▼
+sendPushNotification(token, title, body, data)
+        │
+        ▼
+Expo Server SDK
+  → Expo Push Service
+        │
+        ▼
+  Device (FCM on Android, APNs on iOS)
+```
 
----
+Notification triggers:
 
-# Design Decisions
+| Event | Recipient | Message |
+|---|---|---|
+| Booking created (mechanic assigned) | Mechanic | "New Booking! 🔧" |
+| Status → IN_PROGRESS | Customer | "Mechanic On the Way! 🏍️" |
+| Status → COMPLETED | Customer | "Service Completed! ✅" |
+| ETA updated | Customer | "ETA Updated ⏱️" |
+| Waitlist assigned | Customer | (via reassignWaitlisted) |
 
-## Role-Based Navigation
-
-Customer and mechanic workflows are separated to improve usability and mimic a real-world product experience.
-
----
-
-## Daily Capacity Management
-
-Mechanic workload is calculated using active bookings created during the current day, ensuring fair distribution and preventing overload.
-
----
-
-## Service Layer Pattern
-
-Business logic is separated from controllers to improve maintainability and scalability.
-
----
-
-## Waitlist Strategy
-
-When all mechanics reach capacity, bookings are waitlisted rather than rejected to preserve customer requests.
+> Push tokens are only available in production builds. Expo Go detection (`Constants.appOwnership === "expo"`) skips token registration automatically — no errors in development.
 
 ---
 
-# Assumptions
+## Payment Architecture
 
-* All mechanics have equal skill levels.
-* Maximum capacity is fixed at three active bookings per day.
-* Waitlisted bookings are not automatically reassigned.
-* Service and mechanic data are pre-seeded.
-* Authentication is outside the scope of this assessment.
+```
+BOOKING CREATED
+  paymentStatus = PENDING
+  (no Razorpay order yet)
+        │
+        ▼
+MECHANIC MARKS COMPLETED
+  bookingController.updateBookingStatus("COMPLETED")
+        │
+        ▼
+paymentService.createOrder(service.price, "INR", receipt)
+        │
+   ┌────┴─────┐
+ mock        real
+   │           │
+   ▼           ▼
+auto PAID   paymentStatus = AWAITING
+            paymentOrderId saved
+                │
+                ▼
+        Customer pays via
+        react-native-razorpay
+                │
+                ▼
+    POST /bookings/:id/payment/verify
+        { razorpayOrderId,
+          razorpayPaymentId,
+          razorpaySignature }
+                │
+                ▼
+    HMAC-SHA256 signature check
+        │           │
+      valid       invalid
+        │           │
+        ▼           ▼
+    PAID        FAILED
+```
 
 ---
 
-# Future Enhancements
+## Design System
 
-* Authentication & Authorization
-* Customer Accounts
-* Mechanic Login Portal
-* Admin Dashboard
-* Automatic Waitlist Reassignment
-* Push Notifications
-* Service Scheduling
-* Payment Integration
-* Analytics Dashboard
+All design tokens live in `src/utils/theme.js` and are imported across every screen and navigator.
 
----
+| Token group | Purpose |
+|---|---|
+| `COLORS` | All color values including role-specific accents (`adminAccent`, `mechanicAccent`), semantic colors (`success`, `warning`, `error`), and surface/bg tokens |
+| `FONTS` | Font weight presets — `regular`, `medium`, `semiBold`, `bold`, `extraBold` |
+| `FONT_SIZE` | Scale — `xs`, `sm`, `base`, `md`, `lg`, `xl`, `xxl`, `xxxl` |
+| `SPACING` | Base-8 scale — `xs`, `sm`, `md`, `lg`, `xl`, `xxl`, plus `screen` for horizontal page padding |
+| `RADIUS` | Corner radius presets — `sm`, `md`, `lg`, `xl`, `xxl` |
+| `SHADOW` | Elevation presets — `sm`, `md`, `accent` |
 
-# Author
+Role accent colors:
 
-Anuja Kale
-
-Mechiee Technical Assessment Submission
+| Role | Accent |
+|---|---|
+| Customer | `COLORS.primaryDark` (green family) |
+| Mechanic | `COLORS.mechanicAccent` |
+| Admin | `COLORS.adminAccent` (purple family) |

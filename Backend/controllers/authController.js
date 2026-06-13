@@ -9,75 +9,71 @@ const client = twilio(
 
 // ── Send OTP ──────────────────────────────────────────────
 exports.sendOtp = async (req, res) => {
-  try {
-    const { phone, role } = req.body;
-    if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
-      return res.status(400).json({ message: "Enter a valid 10-digit Indian mobile number" });
-    }
-    const validRoles = ["customer", "mechanic", "administrator"];
-    if (!validRoles.includes(role)) {
-      return res.status(400).json({ message: "Invalid role" });
-    }
+  const { phone, role } = req.body;
 
-    const e164Phone = `+91${phone}`;
-
-    try {
-      await client.verify.v2
-        .services(process.env.TWILIO_VERIFY_SERVICE_SID)
-        .verifications.create({ to: e164Phone, channel: "sms" });
-    } catch (twilioErr) {
-      // On Twilio trial: unverified numbers get a 60203 error
-      // Still return success so frontend proceeds — user can use test OTP 0000
-      console.warn(`[OTP] Twilio warning for ${e164Phone}: ${twilioErr.message}`);
-    }
-
-    res.json({ message: "OTP sent successfully" });
-  } catch (err) {
-    console.error("sendOtp error:", err.message);
-    res.status(500).json({ message: "Failed to send OTP. Try again." });
+  if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
+    return res.status(400).json({ message: "Enter a valid 10-digit Indian mobile number" });
   }
+  const validRoles = ["customer", "mechanic", "administrator"];
+  if (!validRoles.includes(role)) {
+    return res.status(400).json({ message: "Invalid role" });
+  }
+
+  // Always attempt to send — but ALWAYS return success to frontend
+  // so unverified trial numbers still proceed to OTP screen
+  try {
+    await client.verify.v2
+      .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+      .verifications.create({ to: `+91${phone}`, channel: "sms" });
+    console.log(`[OTP] Sent to +91${phone}`);
+  } catch (err) {
+    // Log but don't fail — trial accounts show errors for unverified numbers
+    // but OTP may still be delivered
+    console.warn(`[OTP] Twilio warning: ${err.message}`);
+  }
+
+  // Always respond success — OTP either arrived or user uses 000000 test code
+  return res.json({ message: "OTP sent successfully" });
 };
 
 // ── Verify OTP ────────────────────────────────────────────
 exports.verifyOtp = async (req, res) => {
+  const { phone, otp, role } = req.body;
+
+  if (!phone || !otp || !role) {
+    return res.status(400).json({ message: "phone, otp, and role are required" });
+  }
+
+  // Test OTP bypass — remove before production
+  const TEST_OTP = "000000";
+  let approved = false;
+
+  if (otp === TEST_OTP) {
+    approved = true;
+    console.log(`[OTP] Test code used for +91${phone}`);
+  } else {
+    try {
+      const check = await client.verify.v2
+        .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+        .verificationChecks.create({ to: `+91${phone}`, code: otp });
+      approved = check.status === "approved";
+    } catch (err) {
+      console.error("[OTP] Twilio verify error:", err.message);
+      return res.status(400).json({ message: "Invalid or expired OTP. Try again." });
+    }
+  }
+
+  if (!approved) {
+    return res.status(400).json({ message: "Invalid or expired OTP" });
+  }
+
   try {
-    const { phone, otp, role } = req.body;
-    if (!phone || !otp || !role) {
-      return res.status(400).json({ message: "phone, otp, and role are required" });
-    }
-
-    const e164Phone = `+91${phone}`;
-
-    // ── TEST OTP bypass (remove in production) ────────────
-    const TEST_OTP = "000000";
-    let approved = false;
-
-    if (otp === TEST_OTP) {
-      approved = true;
-      console.log(`[OTP] Test OTP used for ${e164Phone}`);
-    } else {
-      try {
-        const check = await client.verify.v2
-          .services(process.env.TWILIO_VERIFY_SERVICE_SID)
-          .verificationChecks.create({ to: e164Phone, code: otp });
-        approved = check.status === "approved";
-      } catch (twilioErr) {
-        console.error("[OTP] Twilio verify error:", twilioErr.message);
-        return res.status(400).json({ message: "OTP verification failed. Use 0000 for testing." });
-      }
-    }
-
-    if (!approved) {
-      return res.status(400).json({ message: "Invalid or expired OTP" });
-    }
-
-    // Find or create user
     let user = await User.findOne({ phone });
     const isNew = !user;
     if (!user) {
       user = await User.create({ phone, role });
     } else {
-      user.role      = role;
+      user.role = role;
       user.lastLogin = new Date();
       await user.save();
     }
@@ -88,20 +84,14 @@ exports.verifyOtp = async (req, res) => {
       { expiresIn: "30d" }
     );
 
-    res.json({
+    return res.json({
       message: isNew ? "Account created" : "Login successful",
       token,
-      user: {
-        id:    user._id,
-        phone: user.phone,
-        role:  user.role,
-        name:  user.name || "",
-        isNew,
-      },
+      user: { id: user._id, phone: user.phone, role: user.role, name: user.name || "", isNew },
     });
   } catch (err) {
-    console.error("verifyOtp error:", err.message);
-    res.status(500).json({ message: "OTP verification failed. Try again." });
+    console.error("verifyOtp DB error:", err.message);
+    return res.status(500).json({ message: "Server error. Try again." });
   }
 };
 
